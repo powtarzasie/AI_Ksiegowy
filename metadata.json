@@ -1,0 +1,6 @@
+{
+  "name": "Symulator Podatków CIT i VAT",
+  "description": "Profesjonalna aplikacja do symulacji podatków CIT i VAT dla spółek z o.o. z automatycznym zapisem lokalnym i importem/eksportem z plików Excel.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
