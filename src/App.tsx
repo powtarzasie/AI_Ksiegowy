@@ -351,6 +351,27 @@ const SAMPLE_STATE: AppState = {
   }
 };
 
+const EMPTY_STATE: AppState = {
+  settings: {
+    nazwaSpolki: '',
+    nip: '',
+    stawkaCIT: 9,
+    rokPodatkowy: 2026,
+    miesiacPodatkowy: 5
+  },
+  sales: [],
+  purchases: [],
+  citAdvances: [],
+  vatRegistry: [],
+  llmConfig: {
+    provider: 'gemini',
+    apiKey: '',
+    model: 'gemini-2.5-flash',
+    baseUrl: '',
+    isEnabled: false
+  }
+};
+
 export default function App() {
   const [state, setState] = useState<AppState>(() => {
     try {
@@ -361,10 +382,25 @@ export default function App() {
           return parsed as AppState;
         }
       }
+      
+      const chosen = localStorage.getItem('tax_app_initial_chosen');
+      if (chosen === 'empty') {
+        return EMPTY_STATE;
+      }
     } catch (e) {
       console.warn('Could not read state from localStorage, loading template', e);
     }
     return SAMPLE_STATE;
+  });
+
+  const [showLaunchChoices, setShowLaunchChoices] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem(LOCAL_STORAGE_KEY);
+      const chosen = localStorage.getItem('tax_app_initial_chosen');
+      return !saved && !chosen;
+    } catch (e) {
+      return false;
+    }
   });
 
   const [activeTab, setActiveTab ] = useState<'kpis' | 'yearly_executive' | 'registers' | 'settings_backup'>('kpis');
@@ -409,26 +445,9 @@ export default function App() {
 
   // Clear data
   const handleStateClear = () => {
-    setState({
-      settings: {
-        nazwaSpolki: '',
-        nip: '',
-        stawkaCIT: 9,
-        rokPodatkowy: 2026,
-        miesiacPodatkowy: 5
-      },
-      sales: [],
-      purchases: [],
-      citAdvances: [],
-      vatRegistry: [],
-      llmConfig: {
-        provider: 'gemini',
-        apiKey: '',
-        model: 'gemini-2.5-flash',
-        baseUrl: '',
-        isEnabled: false
-      }
-    });
+    localStorage.removeItem('tax_app_initial_chosen');
+    setShowLaunchChoices(true);
+    setState(EMPTY_STATE);
   };
 
   const handleLlmConfigChange = (newConfig: any) => {
@@ -611,10 +630,10 @@ export default function App() {
               {/* Help assistant button in the gap pointed to by the red arrow */}
               <button
                 onClick={() => setShowHelper(!showHelper)}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl border border-indigo-100 bg-indigo-50/55 hover:bg-indigo-50 hover:border-indigo-200 text-[11px] font-bold text-indigo-700 transition-all cursor-pointer shadow-xs select-none"
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100/80 text-[11px] font-bold text-indigo-800 transition-all cursor-pointer shadow-xs select-none uppercase tracking-wider"
               >
-                <HelpCircle className="w-3.5 h-3.5 text-indigo-500" />
-                {showHelper ? 'UKRYJ ASYSTENTA' : 'ASYSTENT POMOCY'}
+                <HelpCircle className="w-4 h-4 text-indigo-600" />
+                CENTRUM POMOCY
               </button>
             </div>
 
@@ -747,11 +766,6 @@ export default function App() {
           <div className="font-display">
             &copy; 2026 Symulator Podatkowy Sp. z o.o. • Autonomiczna Enklawa Podatkowa v2.4.0
           </div>
-          <div className="flex gap-4">
-            <a href="#help" className="hover:text-indigo-600 transition-colors">Wskazówki</a>
-            <span className="text-slate-300">|</span>
-            <a href="#legal" className="hover:text-indigo-600 transition-colors">Regulamin lokalny</a>
-          </div>
         </footer>
       </div>
 
@@ -762,6 +776,87 @@ export default function App() {
           onClose={() => setImportModalOpen(false)}
           onImportCompleted={handleExcelImportCompleted}
         />
+      )}
+
+      {/* Wybór Trybu Uruchomienia (Launch Mode Dialog Selector) */}
+      {showLaunchChoices && (
+        <div className="fixed inset-0 z-50 bg-slate-900/80 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 md:p-8 max-w-xl w-full text-center space-y-6 animate-fade-in">
+            <div className="mx-auto w-14 h-14 bg-indigo-50 border border-indigo-150 rounded-2xl flex items-center justify-center text-indigo-600">
+              <Sparkles className="w-7 h-7 text-indigo-600 animate-pulse" />
+            </div>
+            
+            <div className="space-y-2">
+              <h2 className="text-xl font-bold text-slate-900 tracking-tight font-display">
+                Witaj w Inteligentnym Symulatorze Podatkowym CIT/VAT
+              </h2>
+              <p className="text-xs text-slate-500 max-w-md mx-auto leading-relaxed">
+                Wybierz preferowany tryb startu systemu, aby spersonalizować swój pulpit finansowy. Wybór możesz zresetować w dowolnym momencie w zakładce kopii zapasowej.
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 text-left">
+              {/* Option 1: Tryb Demo */}
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    localStorage.setItem('tax_app_initial_chosen', 'demo');
+                    setState(SAMPLE_STATE);
+                    setShowLaunchChoices(false);
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }}
+                className="group p-4 bg-indigo-50/60 hover:bg-indigo-50 border border-indigo-150/70 hover:border-indigo-300 rounded-2xl transition-all flex items-start gap-4 cursor-pointer text-left focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+              >
+                <div className="p-2.5 bg-white rounded-xl text-indigo-600 shadow-sm shrink-0 group-hover:scale-105 transition-transform">
+                  <Layers className="w-5 h-5 text-indigo-600" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-950 text-xs flex items-center gap-1.5">
+                    📊 Zasilony Tryb Demonstracyjny
+                    <span className="text-[9px] bg-indigo-600 text-white px-2 py-0.5 rounded-full font-bold">Rekomendowany</span>
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                    Szybki start z gotowym zestawem przykładowych faktur sprzedaży i kosztów rocznych. Umożliwi Ci to natychmiastowe przetestowanie wykresów McKinsey, wskaźnika CIT oraz Smart Audytu.
+                  </p>
+                </div>
+              </button>
+
+              {/* Option 2: Czysta Baza */}
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    localStorage.setItem('tax_app_initial_chosen', 'empty');
+                    setState(EMPTY_STATE);
+                    setShowLaunchChoices(false);
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }}
+                className="group p-4 hover:bg-slate-50 border border-slate-200 hover:border-slate-350 rounded-2xl transition-all flex items-start gap-4 cursor-pointer text-left focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+              >
+                <div className="p-2.5 bg-slate-100 rounded-xl text-slate-600 shadow-sm shrink-0 group-hover:scale-105 transition-transform">
+                  <FileSpreadsheet className="w-5 h-5 text-slate-500" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-slate-950 text-xs">
+                    🆕 Czysty Projekt (Zacznij od zera)
+                  </h3>
+                  <p className="text-[11px] text-slate-500 mt-1 leading-relaxed">
+                    Uruchamia całkowicie czysty arkusz kalkulacyjny bez żadnych wpisów. Idealne, aby szybko zacząć wpisywać prawdziwe faktury swojej firmy lub wczytać dane z własnego pliku Excel.
+                  </p>
+                </div>
+              </button>
+            </div>
+
+            <p className="text-[10px] text-slate-400 italic font-medium leading-normal">
+              🔒 Poufność: Niezależnie od wybranego trybu, cała baza danych oraz klucze API pozostają w 100% lokalnie w przeglądarce i nie są wysyłane na żaden zewnętrzny serwer.
+            </p>
+          </div>
+        </div>
       )}
 
     </div>

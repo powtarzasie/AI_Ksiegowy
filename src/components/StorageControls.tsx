@@ -20,7 +20,11 @@ import {
   Settings,
   ShieldCheck,
   Cpu,
-  Laptop
+  Laptop,
+  Lock,
+  Cloud,
+  Shield,
+  Terminal
 } from 'lucide-react';
 
 interface StorageControlsProps {
@@ -566,6 +570,159 @@ export default function StorageControls({
             </button>
           </div>
         </form>
+      </div>
+
+      {/* Strefa Bezpieczeństwa: Centrum Prywatności i Transmisji danych AI */}
+      <div className="border border-slate-200 bg-slate-50/40 rounded-3xl p-5 md:p-6 space-y-5" id="ai-safety-privacy-hub">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-100 pb-4">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-indigo-50 border border-indigo-150 rounded-2xl text-indigo-700">
+              <Shield className="w-5.5 h-5.5" />
+            </div>
+            <div>
+              <h3 className="font-bold text-slate-900 text-sm font-display tracking-tight">
+                Centrum Prywatności i Bezpieczeństwa danych AI
+              </h3>
+              <p className="text-[11px] text-slate-500">
+                Dowiedz się dokładnie jakie dane są przesyłane do i z chmury podczas korzystania z inteligencji AI.
+              </p>
+            </div>
+          </div>
+          
+          <span className="text-[10px] font-mono font-bold bg-emerald-50 text-emerald-800 border border-emerald-150 px-2.5 py-1 rounded-full flex items-center gap-1.5 self-start sm:self-auto select-none">
+            <Lock className="w-3.5 h-3.5 text-emerald-600" />
+            Lokalna Anonimizacja Aktywna
+          </span>
+        </div>
+
+        {/* Visual Interactive explanation grid */}
+        <div className="grid grid-cols-1 md:grid-cols-12 gap-5.5">
+          
+          {/* Left Column: Interactive Q&A Tabs (7 cols) */}
+          <div className="md:col-span-7 space-y-3.5">
+            <h4 className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+              Najczęstsze Pytania o Bezpieczeństwo AI
+            </h4>
+
+            {/* Accordion Blocks */}
+            <div className="space-y-2.5">
+              
+              {/* Accordion 1: Gdzie lądują klucze API */}
+              <details className="group bg-white rounded-2xl border border-slate-150/70 p-4 [&_summary::-webkit-details-marker]:hidden transition-all duration-200 hover:border-slate-300">
+                <summary className="flex items-center justify-between cursor-pointer select-none">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                    <span className="text-indigo-600">01.</span> Gdzie w chmurze ląduje mój prywatny klucz API?
+                  </span>
+                  <span className="text-xs text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="mt-3 text-xs text-slate-500 leading-relaxed pl-7 border-t border-slate-100 pt-3">
+                  <p>
+                    <strong>Nigdzie zewnętrznie!</strong> Twoje klucze (Google Gemini, OpenAI, Claude) są zapisywane <strong>wyłącznie w pamięci podręcznej Twojej przeglądarki (LocalStorage)</strong> na Twoim komputerze i nie są przekazywane na żadne serwery pośredniczące. Połączenie nawiązywane jest bezpośrednio z serwerem dostawcy (np. Google) za pomocą szyfrowanego certyfikatu HTTPS, bezpośrednio z Twojej przeglądarki.
+                  </p>
+                </div>
+              </details>
+
+              {/* Accordion 2: Co dokładnie wysyłamy w chmurę */}
+              <details className="group bg-white rounded-2xl border border-slate-150/70 p-4 [&_summary::-webkit-details-marker]:hidden transition-all duration-200 hover:border-slate-300">
+                <summary className="flex items-center justify-between cursor-pointer select-none">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                    <span className="text-indigo-600">02.</span> Jakie konkretnie dane finansowe przesyłamy modelowi LLM?
+                  </span>
+                  <span className="text-xs text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="mt-3 text-xs text-slate-500 space-y-2 leading-relaxed pl-7 border-t border-slate-100 pt-3">
+                  <p>
+                    Gdy korzystasz z modułu wniosków i audytu AI (np. <span className="font-semibold text-slate-850">Smart Audit</span>), w chmurę przesyłany jest <strong>wyłącznie ustrukturyzowany, zanonimizowany tekstowy kontekst</strong>. System filtruje dane w locie:
+                  </p>
+                  <ul className="list-disc pl-5 space-y-1 text-slate-500 text-[11px]">
+                    <li><strong className="text-slate-800">Nazwa firmy i NIP:</strong> Są automatycznie usuwane i korygowane do placeholdera typu <i>[UKRYTO_NAZWE_SPOLKI]</i> / <i>[UKRYTO_NIP]</i>. Model chmurowy nie wie, dla kogo dokładnie robi analizę.</li>
+                    <li><strong className="text-slate-800">Transakcje handlowe:</strong> Przesyłamy zestawienia finansowe (wielkość przychodów, koszty, stawka podatku, pozycje bilansowe typu "Koszty biurowe" czy "Licencje"). Dane o kontrahentach są pozbawiane wrażliwych nazwisk czy adresów fizycznych.</li>
+                    <li><strong className="text-slate-850">Baza danych:</strong> Twoje pełne, surowe pliki Excel nigdy nie są przesyłane w całości jako pliki binarne do chmury. Przetwarzane są jedynie niezbędne podsumowania i tabele z danymi YTD.</li>
+                  </ul>
+                </div>
+              </details>
+
+              {/* Accordion 3: Jak wygląda płatność / rozliczenie */}
+              <details className="group bg-white rounded-2xl border border-slate-150/70 p-4 [&_summary::-webkit-details-marker]:hidden transition-all duration-200 hover:border-slate-300">
+                <summary className="flex items-center justify-between cursor-pointer select-none">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                    <span className="text-indigo-600">03.</span> Jak działa model płatności (Własny token API)?
+                  </span>
+                  <span className="text-xs text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="mt-3 text-xs text-slate-500 leading-relaxed pl-7 border-t border-slate-100 pt-3">
+                  <p>
+                    Używając własnego klucza API, płacisz bezpośrednio dostawcy (np. Google Cloud, OpenAI, Anthropic) <strong>wyłącznie za zużyte tokeny</strong> (ilość słów przetworzoną podczas analizy). Za jedno kompleksowe przeanalizowanie bilansu spółki (modelami takimi jak Gemini 2.5 Flash), koszt wynosi zazwyczaj <strong>od 0,0001 PLN do 0,002 PLN za zapytanie</strong>. Nie płacisz u nas żadnego abonamentu.
+                  </p>
+                </div>
+              </details>
+
+              {/* Accordion 4: Jak działa w 100% lokalny offline LLM */}
+              <details className="group bg-white rounded-2xl border border-slate-150/70 p-4 [&_summary::-webkit-details-marker]:hidden transition-all duration-200 hover:border-slate-300">
+                <summary className="flex items-center justify-between cursor-pointer select-none">
+                  <span className="text-xs font-bold text-slate-850 flex items-center gap-2">
+                    <span className="text-emerald-700">04.</span> Jak działa lokalna sztuczna inteligencja (LM Studio / Ollama)?
+                  </span>
+                  <span className="text-xs text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="mt-3 text-xs text-slate-500 leading-relaxed pl-7 border-t border-slate-100 pt-3 space-y-2">
+                  <p>
+                    Jeśli Twoja spółka realizuje rygorystyczne procedury tajemnicy przedsiębiorstwa, wybierz dostawcę <strong>LM Studio</strong> lub <strong>Ollama</strong>.
+                  </p>
+                  <p>
+                    W tym trybie aplikacja kieruje zapytania do Twojego własnego komputera (adres localhost / 127.0.0.1). Całość analizy modelu AI odbywa się <strong>na Twoim własnym procesorze i karcie graficznej</strong>. Żadne dane podlegające audytowi nie zostają przesyłane do internetu. Otrzymujesz bezpieczną, darmową i kompletnie offline'ową enklawę inteligencji!
+                  </p>
+                </div>
+              </details>
+
+            </div>
+          </div>
+
+          {/* Right Column: Interactive Sandboxed Prompt Sanitizer Simulator (5 cols) */}
+          <div className="md:col-span-5 bg-slate-900 text-slate-200 rounded-2xl p-4 flex flex-col justify-between border border-slate-850 shadow-inner min-h-[300px]">
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="flex items-center gap-2 text-[10px] font-mono tracking-widest font-bold text-indigo-400 uppercase">
+                  <Terminal className="w-3.5 h-3.5 animate-pulse" />
+                  Podgląd Filtra Danych (Sanitizer)
+                </span>
+                <div className="w-2 h-2 rounded-full bg-emerald-500" />
+              </div>
+
+              <p className="text-[11px] text-slate-400 font-sans leading-relaxed">
+                Interaktywny podgląd na żywo pokazuje, jak system filtruje i przygotowuje dane przed analizą w chmurze:
+              </p>
+
+              {/* Sanitized Live View Box */}
+              <div className="bg-black/50 rounded-xl p-3.5 border border-white/5 space-y-3.5 font-mono text-[10px] leading-relaxed text-slate-350">
+                <div className="text-slate-500 pb-1.5 border-b border-white/5 flex justify-between text-[9px] uppercase font-bold">
+                  <span>Wyjściowy Prompt Context</span>
+                  <span className="text-emerald-400">🛡️ Zweryfikowano</span>
+                </div>
+                <div>
+                  <span className="text-slate-500">[META INFO]</span><br />
+                  SPOLKA_ID: <span className="bg-indigo-950/70 text-indigo-300 font-bold px-1.5 py-0.5 rounded border border-indigo-900/50">[UKRYTO / ANONIMIZACJA_NAZWY_SPOLKI]</span><br />
+                  NIP_ID: <span className="bg-indigo-950/70 text-indigo-300 font-bold px-1.5 py-0.5 rounded border border-indigo-900/50">[UKRYTO / ANONIMIZACJA_NIP]</span><br />
+                  OKRES: {state.settings.rokPodatkowy} r.<br />
+                  STAWKA_CIT: {state.settings.stawkaCIT}% CIT Preferencyjny
+                </div>
+                <div className="border-t border-white/5 pt-2 text-[9.5px]">
+                  <span className="text-slate-500">[BILANS_TRANSAKCJI]</span><br />
+                  Przychody (Sprzedaż YTD): {state.sales.length} faktur • Suma Netto: {state.sales.reduce((acc, s) => acc + s.netto, 0).toLocaleString('pl-PL')} PLN<br />
+                  Koszty (KUP YTD): {state.purchases.length} faktur • Suma Netto: {state.purchases.reduce((acc, p) => acc + p.netto, 0).toLocaleString('pl-PL')} PLN
+                </div>
+                <div className="text-[9.5px] text-indigo-300 bg-indigo-950/30 p-2 rounded-lg border border-indigo-900/40">
+                  💡 <strong>Informacja:</strong> Wszelkie wrażliwe opisy faktur są automatycznie agregowane i redukowane do suchych kwot podsumowujących. Żadne imiona, nazwiska ani wrażliwe nazwy towarów nie są przekazywane na serwery.
+                </div>
+              </div>
+            </div>
+
+            <div className="text-[9px] text-slate-500 font-mono text-center pt-3 mt-3 border-t border-white/5 leading-relaxed">
+              Kopia transakcji pozostaje w pamięci LocalStorage Twojej przeglądarki.
+            </div>
+          </div>
+
+        </div>
       </div>
 
       {/* Recommended Master Synchronizer Area */}
