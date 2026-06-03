@@ -403,6 +403,17 @@ export default function App() {
     }
   });
 
+  const [showLegalDisclaimer, setShowLegalDisclaimer] = useState<boolean>(() => {
+    try {
+      const accepted = localStorage.getItem('tax_app_disclaimer_accepted');
+      return accepted !== 'true';
+    } catch (e) {
+      return true;
+    }
+  });
+
+  const [disclaimerChecked, setDisclaimerChecked] = useState<boolean>(false);
+
   const [activeTab, setActiveTab ] = useState<'kpis' | 'yearly_executive' | 'registers' | 'settings_backup'>('kpis');
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [isSavedIndicator, setIsSavedIndicator] = useState(false);
@@ -748,16 +759,32 @@ export default function App() {
           )}
         </div>
 
-        {/* Local storage banner transformed into Bento Alert block (Moved to bottom) */}
-        <div className="bg-amber-50/50 border border-amber-150 p-5 rounded-2xl flex items-start gap-3.5 mt-8 transition-all hover:bg-amber-50/70" id="local-disclaimer-box">
-          <div className="w-10 h-10 bg-amber-400 rounded-xl flex items-center justify-center text-xl text-amber-900 shadow-xs shrink-0 select-none">
-            ⚠️
+        {/* Bottom Info Blocks Grid */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-8">
+          {/* Local storage banner transformed into Bento Alert block (Moved to bottom) */}
+          <div className="bg-amber-50/50 border border-amber-150 p-5 rounded-2xl flex items-start gap-3.5 transition-all hover:bg-amber-50/70" id="local-disclaimer-box">
+            <div className="w-10 h-10 bg-amber-400 rounded-xl flex items-center justify-center text-xl text-amber-900 shadow-xs shrink-0 select-none">
+              ⚠️
+            </div>
+            <div>
+              <h4 className="font-bold text-amber-900 text-xs leading-none">Zasada Przechowywania: Pamięć Podręczna</h4>
+              <p className="text-[11px] text-amber-800 mt-1.5 leading-relaxed opacity-95">
+                Twoje dane są bezpiecznie odizolowane i przechowywane <b>wyłącznie w Twojej bieżącej przeglądarce</b>. Wyczyszczenie plików cookie lub zmiana urządzenia spowoduje usunięcie postępów. Aby uchronić się przed utratą danych, regularnie eksportuj i pobieraj kopie zapasowe w bocznej sekcji <span className="font-semibold italic">Magazyn i Kopia Zapasowa</span>.
+              </p>
+            </div>
           </div>
-          <div>
-            <h4 className="font-bold text-amber-900 text-xs leading-none">Zasada Przechowywania: Pamięć Podręczna</h4>
-            <p className="text-[11px] text-amber-800 mt-1.5 leading-relaxed opacity-95">
-              Twoje dane są bezpiecznie odizolowane i przechowywane <b>wyłącznie w Twojej bieżącej przeglądarce</b>. Wyczyszczenie plików cookie lub zmiana urządzenia spowoduje usunięcie postępów. Aby uchronić się przed utratą danych, regularnie eksportuj i pobieraj kopie zapasowe w bocznej sekcji <span className="font-semibold italic">Magazyn i Kopia Zapasowa</span>.
-            </p>
+
+          {/* Designed For Spółka z o.o. block */}
+          <div className="bg-indigo-50/50 border border-indigo-150 p-5 rounded-2xl flex items-start gap-3.5 transition-all hover:bg-indigo-50/70" id="target-audience-box">
+            <div className="w-10 h-10 bg-indigo-550 rounded-xl flex items-center justify-center text-sm text-white shadow-xs shrink-0 select-none font-bold font-display">
+              🎯
+            </div>
+            <div>
+              <h4 className="font-bold text-indigo-900 text-xs leading-none">Przeznaczenie: Spółki z o.o. (CIT + VAT)</h4>
+              <p className="text-[11px] text-indigo-800 mt-1.5 leading-relaxed opacity-95">
+                Ten symulator powstał <b>wyłącznie dla polskich Spółek z o.o.</b> w oparciu o opodatkowanie CIT (9%/19%) oraz VAT (23%). Dane i wyliczenia asystenta AI mają charakter poglądowo-edukacyjny, nie stanowią porady prawnej ani podatkowej, a wszelka odpowiedzialność leży po stronie użytkownika.
+              </p>
+            </div>
           </div>
         </div>
 
@@ -855,6 +882,113 @@ export default function App() {
             <p className="text-[10px] text-slate-400 italic font-medium leading-normal">
               🔒 Poufność: Niezależnie od wybranego trybu, cała baza danych oraz klucze API pozostają w 100% lokalnie w przeglądarce i nie są wysyłane na żaden zewnętrzny serwer.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Pierwsze Uruchomienie: Regulamin & Zrzeczenie Odpowiedzialności (Modal Overlay) */}
+      {showLegalDisclaimer && (
+        <div className="fixed inset-0 z-100 bg-slate-950/90 backdrop-blur-md flex items-center justify-center p-4 overflow-y-auto">
+          <div className="bg-slate-900 border border-slate-800 text-slate-100 rounded-3xl p-6 md:p-8 max-w-2xl w-full space-y-6 shadow-2xl animate-fade-in" id="startup-legal-disclaimer">
+            <div className="flex items-center gap-3 border-b border-slate-800 pb-4">
+              <div className="p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-2xl text-amber-400">
+                <span className="text-xl">⚖️</span>
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-white tracking-tight font-display">
+                  Warunki Korzystania & Zrzeczenie Odpowiedzialności
+                </h2>
+                <p className="text-[10px] text-amber-400 uppercase tracking-wider font-semibold mt-0.5">
+                  Wersja Demonstracyjno-Edukacyjna
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-4 text-xs text-slate-300 leading-relaxed max-h-[40vh] overflow-y-auto pr-2 custom-scrollbar">
+              <div className="space-y-2">
+                <h4 className="font-bold text-white flex items-center gap-2">
+                  <span>🎯</span> 1. Przeznaczenie systemu (Tylko Spółki z o.o.)
+                </h4>
+                <p className="text-slate-400">
+                  Aplikacja jest wyspecjalizowanym narzędziem przeznaczonym <strong>wyłącznie dla spółek z ograniczoną odpowiedzialnością (Sp. z o.o.)</strong> w Polsce, rozliczających podatek dochodowy od osób prawnych (<strong>CIT</strong> 9% / 19%) oraz podatek od towarów i usług (<strong>VAT</strong> 23%). Program <strong>nie jest</strong> dostosowany do jednoosobowych działalności gospodarczych (JDG) obciążonych podatkiem PIT.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-bold text-white flex items-center gap-2">
+                  <span>⚠️</span> 2. Brak charakteru prawnego i księgowego
+                </h4>
+                <p className="text-slate-400">
+                  Prezentowane wzory kalkulacji, tabele, automatyczne porady asystenta AI oraz rekomendacje optymalizacyjne są uproszczonymi modelami statystyczno-matematycznymi. <strong>Aplikacja oraz jej asystent AI nie świadczą usług doradztwa podatkowego, prawnego ani finansowego</strong> w rozumieniu ustawy o doradztwie podatkowym.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-bold text-white flex items-center gap-2">
+                  <span>💼</span> 3. Wyłączna odpowiedzialność użytkownika
+                </h4>
+                <p className="text-slate-400">
+                  Rozumiesz, że wszelkie operacje, symulacje kosztowe, testy alokacji oraz decyzje inwestycyjne podejmujesz <strong>wyłącznie na własną odpowiedzialność</strong>. Wyniki z symulatora mają charakter darmowej pomocy kierunkowej. Zawsze przed złożeniem ostatecznych deklaracji księgowych lub podjęciem decyzji biznesowych powinieneś skonsultować sprawozdania z licencjonowanym doradcą podatkowym lub certyfikowanym biurem rachunkowym.
+                </p>
+              </div>
+
+              <div className="space-y-2">
+                <h4 className="font-bold text-white flex items-center gap-2">
+                  <span>🔒</span> 4. 100% Prywatność lokalna
+                </h4>
+                <p className="text-slate-400">
+                  Twoje klucze API i wprowadzane dane nie są przesyłane na żadne serwery zewnętrzne. Wszystkie bilanse i rejestry pozostają tylko na tym urządzeniu w Twojej przeglądarce i nigdzie nie są replikowane.
+                </p>
+              </div>
+
+              <div className="space-y-2 bg-emerald-950/20 border border-emerald-900/35 p-3 rounded-2xl">
+                <h4 className="font-bold text-emerald-400 flex items-center gap-2 text-xs">
+                  <span>🛡️</span> 5. Anonimizacja RODO dla zapytań AI
+                </h4>
+                <p className="text-slate-300 text-[11px] leading-relaxed">
+                  Zgodnie z wymaganiami RODO (GDPR), nasz symulator stosuje wbudowany, automatyczny <strong>filtr maskujący dane wrażliwe przed wysyłką do modeli AI</strong>. Nazwy kontrahentów są rewidowane do bezpiecznych znaczników typu <code>[KONTRAHENT_A]</code>, a numery faktur są zamieniane na neutralne ID <code>[FAKTURA_01]</code>. AI analizuje wyłącznie zanonimizowany bilans i wartości liczbowe bez kontaktu z danymi osobowymi.
+                </p>
+              </div>
+            </div>
+
+            {/* Checkbox Section */}
+            <div className="pt-2">
+              <label className="flex items-start gap-3 p-4 bg-slate-850/80 border border-slate-800 rounded-2xl cursor-pointer hover:bg-slate-850 transition-all text-left">
+                <input
+                  type="checkbox"
+                  checked={disclaimerChecked}
+                  onChange={(e) => setDisclaimerChecked(e.target.checked)}
+                  className="mt-1 w-4.5 h-4.5 accent-indigo-650 cursor-pointer rounded-sm bg-slate-950 border-slate-700"
+                  id="checkbox-accept-disclaimer"
+                />
+                <span className="text-[11px] text-slate-300 leading-relaxed select-none">
+                  Oświadczam, że rozumiem demonstracyjny i edukacyjny charakter symulatora dedykowanego wyłącznie dla <strong>Spółek z o.o. (CIT + VAT)</strong>. Akceptuję informację o braku charakteru porady prawnej/finansowej i przejmuję pełną odpowiedzialność za wykorzystanie narzędzia.
+                </span>
+              </label>
+            </div>
+
+            {/* Accept Button action */}
+            <div className="pt-2">
+              <button
+                type="button"
+                disabled={!disclaimerChecked}
+                onClick={() => {
+                  try {
+                    localStorage.setItem('tax_app_disclaimer_accepted', 'true');
+                    setShowLegalDisclaimer(false);
+                  } catch (e) {
+                    console.error(e);
+                  }
+                }}
+                className={`w-full py-4 px-6 rounded-2xl font-bold tracking-wide uppercase transition-all select-none text-xs ${
+                  disclaimerChecked 
+                    ? 'bg-indigo-600 border border-indigo-500 hover:bg-indigo-500 text-white cursor-pointer hover:shadow-lg shadow-indigo-950/50'
+                    : 'bg-slate-800 border border-slate-700 text-slate-500 cursor-not-allowed'
+                }`}
+              >
+                AKCEPTUJĘ WARUNKI I URUCHAMIAM SYSTEM
+              </button>
+            </div>
           </div>
         </div>
       )}

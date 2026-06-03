@@ -40,7 +40,7 @@ export default function CompanySettingsComponent({
   showHelper,
   onShowHelperChange,
 }: CompanySettingsProps) {
-  const [activeQuestion, setActiveQuestion] = useState<'all' | 'nip' | 'cit_vs_vat' | 'cars_and_other' | 'start_balance' | 'ai_privacy' | 'ai_cost'>('all');
+  const [activeQuestion, setActiveQuestion] = useState<'all' | 'nip' | 'cit_vs_vat' | 'cars_and_other' | 'start_balance' | 'ai_privacy' | 'ai_cost' | 'target_disclaimer'>('all');
   
   const handleChange = (field: keyof CompanySettings, value: any) => {
     onSettingsChange({
@@ -107,6 +107,7 @@ export default function CompanySettingsComponent({
               <div className="flex flex-wrap gap-2 pb-1 border-b border-slate-800/50">
                 {[
                   { tag: 'all', label: '📖 Przegląd wszystkich tematów' },
+                  { tag: 'target_disclaimer', label: '⚖️ Przeznaczenie i Zastrzeżenia' },
                   { tag: 'ai_privacy', label: '🛡️ Prywatność & Co wysyłamy do AI?' },
                   { tag: 'ai_cost', label: '💸 Rozliczenie & Darmowy Klucz API' },
                   { tag: 'nip', label: '🏢 Po co mi Nazwa i NIP?' },
@@ -131,57 +132,95 @@ export default function CompanySettingsComponent({
 
               {/* Help Content Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6 pt-2 text-xs leading-relaxed max-h-[60vh] overflow-y-auto pr-2 custom-scrollbar">
+
+                {/* Question: Przeznaczenie i Zastrzeżenia */}
+                {(activeQuestion === 'all' || activeQuestion === 'target_disclaimer') && (
+                  <div className="bg-amber-950/20 border border-amber-900/35 rounded-2xl p-5 md:p-6 space-y-4 col-span-1 md:col-span-2 shadow-sm text-slate-300">
+                    <div className="flex items-center gap-2 border-b border-amber-900/40 pb-3">
+                      <span className="text-lg">⚖️</span>
+                      <h4 className="font-bold text-amber-300 text-sm font-display tracking-tight">
+                        Dla kogo przeznaczony jest symulator i oficjalne zastrzeżenia prawne (Koniecznie Przeczytaj!)
+                      </h4>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-[11px] leading-relaxed">
+                      <div className="space-y-2">
+                        <span className="font-bold text-white block">🎯 Specjalizacja: Tylko dla Spółek z o.o. (CIT + VAT)</span>
+                        <p>
+                          Aplikacja została zaprojektowana <strong>wyłącznie w oparciu o polskie przepisy dla spółek z ograniczoną odpowiedzialnością (Sp. z o.o.)</strong> rozliczających się podatkiem dochodowym od osób prawnych (stawka CIT 9% dla małych podatników lub 19% stawka ogólna) oraz będących czynnymi podatnikami podatku od towarów i usług (VAT 23%).
+                        </p>
+                        <p className="text-slate-400">
+                          Program nie obsługuje jednoosobowych działalności gospodarczych (JDG) opodatkowanych podatkiem PIT (zasady ogólne, liniowy, ryczałt).
+                        </p>
+                      </div>
+                      <div className="space-y-2">
+                        <span className="font-bold text-rose-300 block">⚠️ Brak Charakteru Porady Prawnej / Podatkowej</span>
+                        <p>
+                          System stanowi <strong>wyłącznie symulację demonstracyjno-edukacyjną</strong> i nie prowadzi działalności doradztwa podatkowego w rozumieniu ustawy o doradztwie podatkowym.
+                        </p>
+                        <p>
+                          Kalkulatory bazują na uproszczonych formułach matematycznych i uśrednionych algorytmach. Prezentowane wyniki mają walor wyłącznie ilustracyjny. Wszelka odpowiedzialność za wykorzystanie danych oraz za ewentualne decyzje gospodarcze leży <strong>wyłącznie po stronie użytkownika</strong>. Przed złożeniem deklaracji podatkowej zawsze skonsultuj się z certyfikowanym doradcą podatkowym lub biurem rachunkowym.
+                        </p>
+                      </div>
+                    </div>
+                    <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800 text-[10.5px] text-slate-400">
+                      <strong>Podsumowanie:</strong> Samodzielne klikanie w programie służy do analizy kierunkowej i "zrozumienia liczb" (np. symulacja McKinsey przed rozmową z księgowym), a nie zastępowania profesjonalnego biura rachunkowego.
+                    </div>
+                  </div>
+                )}
               
-              {/* Question: Prywatność & Transmisja AI */}
-              {(activeQuestion === 'all' || activeQuestion === 'ai_privacy') && (
-                <div className="bg-slate-850/60 border border-slate-800 rounded-2xl p-5 md:p-6 space-y-4 col-span-1 md:col-span-2 shadow-sm">
-                  <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
-                    <Shield className="w-5 h-5 text-emerald-400" />
-                    <h4 className="font-bold text-white text-sm font-display tracking-tight">
-                      Gdzie są zapisywane moje klucze i co dokładnie przesyłamy do chmury? (Pełna Transparentność)
-                    </h4>
-                  </div>
-                  
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-[11px] text-slate-300">
-                    <div className="bg-slate-900/80 p-4.5 rounded-2xl border border-slate-800 space-y-2">
-                      <div className="flex items-center gap-1.5 font-bold text-emerald-400">
-                        <Lock className="w-4 h-4 shrink-0" />
-                        <span>1. 100% Lokalny Zapis</span>
+                {/* Question: Prywatność, RODO & Bezpieczeństwo AI */}
+                {(activeQuestion === 'all' || activeQuestion === 'ai_privacy') && (
+                  <div className="bg-slate-850/60 border border-slate-800 rounded-2xl p-5 md:p-6 space-y-4 col-span-1 md:col-span-2 shadow-sm">
+                    <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                      <Shield className="w-5 h-5 text-emerald-400" />
+                      <h4 className="font-bold text-white text-sm font-display tracking-tight">
+                        Gwarancja RODO i Bezpieczeństwa: Jak chronimy dane firmowe i faktury przed AI?
+                      </h4>
+                    </div>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-5 text-[11px] text-slate-300">
+                      <div className="bg-slate-900/80 p-4.5 rounded-2xl border border-slate-800 space-y-2">
+                        <div className="flex items-center gap-1.5 font-bold text-emerald-400">
+                          <Lock className="w-4 h-4 shrink-0" />
+                          <span>1. Pełne Maskowanie Kontrahentów</span>
+                        </div>
+                        <p className="leading-relaxed text-slate-400">
+                          Wszelkie nazwy dostawców, odbiorców oraz osób fizycznych są <strong>całkowicie usuwane w pamięci urządzenia</strong> przed wysłaniem zapytania do modeli AI. Wszelkie nazwy własne zastępowane są neutralnymi etykietami, np. <code>[KONTRAHENT_A]</code> lub <code>[DOSTAWCA_USŁUG_01]</code>. Do chmury nigdy nie trafia żadne sformułowanie identyfikujące partnera biznesowego.
+                        </p>
                       </div>
-                      <p className="leading-relaxed text-slate-400">
-                        Twoje klucze API (np. Google Gemini) są zapisywane <strong>wyłącznie w pamięci Twojej przeglądarki (LocalStorage)</strong> na Twoim dysku. Aplikacja nie posiada własnego serwera bazodanowego, który gromadziłby te klucze.
-                      </p>
+
+                      <div className="bg-slate-900/80 p-4.5 rounded-2xl border border-slate-800 space-y-2">
+                        <div className="flex items-center gap-1.5 font-bold text-indigo-400">
+                          <Terminal className="w-4 h-4 shrink-0" />
+                          <span>2. Redakcja Numerów Faktur</span>
+                        </div>
+                        <p className="leading-relaxed text-slate-400">
+                          Numery faktur (np. <i>FV/1042/2026/XYZ</i>) stanowią unikalne identyfikatory, które mogłyby wskazywać na strukturę zakupową Twojej formy. Z tego powodu nasz system <strong>automatycznie maskuje numery dokumentów</strong>, zmieniając je na losowe kody porządkowe typu <code>[FAKTURA_01]</code>, <code>[RACHUNEK_02]</code>. Do LLM płyną wyłącznie suche liczby podatkowe i kody.
+                        </p>
+                      </div>
+
+                      <div className="bg-slate-900/80 p-4.5 rounded-2xl border border-slate-800 space-y-2">
+                        <div className="flex items-center gap-1.5 font-bold text-amber-400">
+                          <Laptop className="w-4 h-4 shrink-0" />
+                          <span>3. Zero-Knowledge o Firmie</span>
+                        </div>
+                        <p className="leading-relaxed text-slate-400">
+                          Twoja nazwa rejestrowa i NIP są całkowicie ukrywane. Model sztucznej inteligencji analizuje zbiór finansowy jako <strong>całkowicie bezimienny model spółki z o.o.</strong> bez możliwości skorelowania go z rzeczywistym podmiotem w Polsce. Dodatkowo, jeśli chcesz unikać chmur, możesz użyć w pełni prywatnego połączenia lokalnego <strong className="text-white">LM Studio / Ollama (100% offline)</strong>.
+                        </p>
+                      </div>
                     </div>
 
-                    <div className="bg-slate-900/80 p-4.5 rounded-2xl border border-slate-800 space-y-2">
-                      <div className="flex items-center gap-1.5 font-bold text-indigo-400">
-                        <Terminal className="w-4 h-4 shrink-0" />
-                        <span>2. Filtracja Wrażliwych Danych</span>
+                    <div className="bg-indigo-950/45 border border-indigo-900/60 rounded-xl p-4.5 text-[11px] text-slate-300 flex items-start gap-3">
+                      <span className="text-emerald-400 text-lg mt-0.5">🛡️</span>
+                      <div>
+                        <p className="font-bold text-white mb-1">Zgodność z RODO (GDPR Compliance):</p>
+                        <p className="leading-relaxed">
+                          Zgodnie z Rozporządzeniem Ogólnym o Ochronie Danych Osobowych (RODO), przesyłanie danych osobowych do zewnętrznych dostawców AI bez odpowiednich umów powierzenia przetwarzania danych może stanowić naruszenie prawa. Ten symulator <strong>nigdy nie wysyła danych osobowych, adresowych, kontaktowych ani handlowych identyfikatorów</strong> do API zewnętrznych. AI otrzymuje wyłącznie anonimowe agregaty liczbowe i ogólne kategorie opisowe (np. "paliwo", "reklama", "oprogramowanie"). Twój biznes jest w 100% bezpieczny.
+                        </p>
                       </div>
-                      <p className="leading-relaxed text-slate-400">
-                        Podczas analizy (funkcja <strong className="text-indigo-300">Smart Audit</strong>), system automatycznie <strong>anonimizuje tekst</strong>. Nazwa Twojej spółki i NIP są podmieniane na bezpieczne tagi maskujące. Pozycje faktur są zbierane w suche kwoty zbiorcze.
-                      </p>
-                    </div>
-
-                    <div className="bg-slate-900/80 p-4.5 rounded-2xl border border-slate-800 space-y-2">
-                      <div className="flex items-center gap-1.5 font-bold text-amber-400">
-                        <Laptop className="w-4 h-4 shrink-0" />
-                        <span>3. Opcjonalny Tryb Offline</span>
-                      </div>
-                      <p className="leading-relaxed text-slate-400">
-                        Jeżeli przepisy wewnętrzne Twojej firmy całkowicie zabraniają wysyłania jakichkolwiek liczb na serwery chmurowe Google/OpenAI, możesz podpiąć lokalną AI przez <strong>LM Studio</strong> lub <strong>Ollama</strong>. Wtedy całość działa na Twojej karcie graficznej bez internetu.
-                      </p>
                     </div>
                   </div>
-
-                  <div className="bg-indigo-950/40 border border-indigo-900/50 rounded-xl p-3 text-[11.5px] text-slate-350 flex items-start gap-2.5">
-                    <span className="text-indigo-400 text-sm mt-0.5">ℹ️</span>
-                    <p>
-                      <strong>Podsumowanie dla Dyrekcji / Zarządu:</strong> Aplikacja chroni tajemnicę handlową przedsiębiorstwa. Nikt poza Tobą nie ma zdalnego wglądu do Twoich ewidencji VAT i ksiąg, ponieważ program jest aplikacją kliencką (SPA) działającą wyłącznie na Twoim komputerze.
-                    </p>
-                  </div>
-                </div>
-              )}
+                )}
 
               {/* Question: Rozliczenie tokenów */}
               {(activeQuestion === 'all' || activeQuestion === 'ai_cost') && (

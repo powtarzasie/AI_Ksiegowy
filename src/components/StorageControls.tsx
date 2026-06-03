@@ -626,18 +626,19 @@ export default function StorageControls({
               <details className="group bg-white rounded-2xl border border-slate-150/70 p-4 [&_summary::-webkit-details-marker]:hidden transition-all duration-200 hover:border-slate-300">
                 <summary className="flex items-center justify-between cursor-pointer select-none">
                   <span className="text-xs font-bold text-slate-800 flex items-center gap-2">
-                    <span className="text-indigo-600">02.</span> Jakie konkretnie dane finansowe przesyłamy modelowi LLM?
+                    <span className="text-indigo-600">02.</span> Jak dbamy o RODO? Jakie dane płyną do modeli LLM?
                   </span>
                   <span className="text-xs text-slate-400 group-open:rotate-180 transition-transform">▼</span>
                 </summary>
                 <div className="mt-3 text-xs text-slate-500 space-y-2 leading-relaxed pl-7 border-t border-slate-100 pt-3">
                   <p>
-                    Gdy korzystasz z modułu wniosków i audytu AI (np. <span className="font-semibold text-slate-850">Smart Audit</span>), w chmurę przesyłany jest <strong>wyłącznie ustrukturyzowany, zanonimizowany tekstowy kontekst</strong>. System filtruje dane w locie:
+                    Gdy korzystasz z modułu wniosków i audytu AI (np. <span className="font-semibold text-slate-850">Smart Audit</span>), system automatycznie dokonuje **lokalnego oczyszczenia wszelkich poufnych informacji i danych osobowych (GDPR-Safe AI compliance)** przed wysłaniem zapytania do chmury dostawcy:
                   </p>
-                  <ul className="list-disc pl-5 space-y-1 text-slate-500 text-[11px]">
-                    <li><strong className="text-slate-800">Nazwa firmy i NIP:</strong> Są automatycznie usuwane i korygowane do placeholdera typu <i>[UKRYTO_NAZWE_SPOLKI]</i> / <i>[UKRYTO_NIP]</i>. Model chmurowy nie wie, dla kogo dokładnie robi analizę.</li>
-                    <li><strong className="text-slate-800">Transakcje handlowe:</strong> Przesyłamy zestawienia finansowe (wielkość przychodów, koszty, stawka podatku, pozycje bilansowe typu "Koszty biurowe" czy "Licencje"). Dane o kontrahentach są pozbawiane wrażliwych nazwisk czy adresów fizycznych.</li>
-                    <li><strong className="text-slate-850">Baza danych:</strong> Twoje pełne, surowe pliki Excel nigdy nie są przesyłane w całości jako pliki binarne do chmury. Przetwarzane są jedynie niezbędne podsumowania i tabele z danymi YTD.</li>
+                  <ul className="list-disc pl-5 space-y-1.5 text-slate-500 text-[11px]">
+                    <li><strong className="text-slate-800">Nazwy Kontrahentów:</strong> Wszystkie nazwy firm, imiona, nazwiska, adresy fizyczne i adresy e-mail są automatycznie wycinane na Twoim komputerze i podmieniane na bezimienne etykiety np. <i>[KONTRAHENT_A]</i>, <i>[DOSTAWCA_OPROGRAMOWANIA]</i>.</li>
+                    <li><strong className="text-slate-800">Numery Faktur i Identyfikatory:</strong> Numery dokumentów księgowych są całkowicie usuwane i rewidowane do neutralnych tagów indeksowych np. <i>[FAKTURA_01]</i>, aby uniemożliwić skojarzenie transakcji z realną operacją handlową.</li>
+                    <li><strong className="text-slate-800">Zgodność z NIP i Danymi Firmy:</strong> Nazwa Twojej spółki i NIP nie opuszczają przeglądarki. Zapytanie jest formułowane pod kątem obiektywnej analizy finansowej Spółki z o.o. podlegającej pod polski CIT (9%/19%) i VAT (23%) bez ujawniania podmiotu.</li>
+                    <li><strong className="text-slate-800">Pełen Audyt Sumaryczny:</strong> Wysłaniu ulega wyłącznie sucha struktura liczb (miesięczne sumy przychodów, koszty operacyjne, stawka VAT, stawka CIT, zysk brutto/netto) oraz zanonimizowane opisy kategorii produktów (np. "reklama", "księgowość", "paliwo").</li>
                   </ul>
                 </div>
               </details>
