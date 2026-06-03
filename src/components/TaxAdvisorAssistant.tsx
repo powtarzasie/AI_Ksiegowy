@@ -96,6 +96,18 @@ export default function TaxAdvisorAssistant({ state }: TaxAdvisorAssistantProps)
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
   const [explanationQuery, setExplanationQuery] = useState<string>('');
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOffline(false);
+    const handleOffline = () => setIsOffline(true);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
 
   // Persist KRS changes
   const saveKrs = () => {
@@ -151,6 +163,14 @@ export default function TaxAdvisorAssistant({ state }: TaxAdvisorAssistantProps)
 
   const handleCheckExpense = async (queryText: string, isFromExample = false) => {
     if (!queryText.trim() || loading) return;
+
+    if (!navigator.onLine) {
+      setIsOffline(true);
+      setCurrentResult(null);
+      setExplanationQuery(queryText);
+      return;
+    }
+
     setLoading(true);
     setLoadingStep(0);
     setCurrentResult(null);
@@ -172,6 +192,7 @@ export default function TaxAdvisorAssistant({ state }: TaxAdvisorAssistantProps)
       if (resData && resData.data) {
         const result: TaxQualificationResult = resData.data;
         setCurrentResult(result);
+        setIsOffline(false);
 
         // Add to history
         const newItem: HistoryItem = {
@@ -192,17 +213,8 @@ export default function TaxAdvisorAssistant({ state }: TaxAdvisorAssistantProps)
       }
     } catch (error: any) {
       console.error('API Error checking expense:', error);
-      // Hard fallback based on client-side heuristic just in case to avoid any bad states
-      const fallbackResult = {
-        light: 'yellow' as const,
-        category: 'Analiza awaryjna (Koszt Operacyjny)',
-        vatDeductibility: 'Do weryfikacji. Wymaga faktury imiennej na Spółkę z o.o.',
-        citDeductibility: 'Zazwyczaj 100% KUP w celach bezpośrednio zabezpieczających stabilność biura.',
-        justification: `Z powodu przejściowych problemów komunikacyjnych z serwerem AI, automatycznie aktywowano lokalny symulator podatkowy. Wydatek "${queryText}" wykazuje potencjalny logiczny związek z działalnością biura projektowego i nadzorem (PKD 71.11.Z) w ramach celowości z art. 15 ust. 1 ustawy o CIT.`,
-        accountingAdvice: `1. Upewnij się, że poprawnie podano dane Twojej spółki (NIP, adres) i zgromadzono fakturę.\n2. Przygotuj krótkie wyjaśnienie dla księgowej na wypadek kontroli skarbowej (np. inwentaryzacja, wyjazd terenowy do klienta).`,
-        krsRelevance: `Możliwa zbieżność z profilem usług projektowo-doradczych.`
-      };
-      setCurrentResult(fallbackResult);
+      setIsOffline(true);
+      setCurrentResult(null);
     } finally {
       setLoading(false);
     }
@@ -247,6 +259,23 @@ export default function TaxAdvisorAssistant({ state }: TaxAdvisorAssistantProps)
     }
   };
 
+  const getLlmEngineLabel = () => {
+    const config = state.llmConfig;
+    if (!config) return 'Gemini (gemini-2.5-flash)';
+    
+    const providerMap: Record<string, string> = {
+      gemini: 'Google Gemini',
+      openai: 'OpenAI',
+      anthropic: 'Anthropic Claude',
+      ollama: 'Ollama Local LLM',
+      lmstudio: 'LM Studio Local LLM',
+      custom: 'Custom API'
+    };
+
+    const providerLabel = providerMap[config.provider] || config.provider;
+    return `${providerLabel} (${config.model || 'domyślny'})`;
+  };
+
   return (
     <div className="space-y-6" id="tax-advisor-tab-wrapper">
       
@@ -269,14 +298,21 @@ export default function TaxAdvisorAssistant({ state }: TaxAdvisorAssistantProps)
           
           <div className="bg-slate-850/50 border border-slate-700/50 p-4 rounded-2xl flex items-center gap-3 shrink-0">
             <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-xl shadow-md">
-              🧠
+              {isOffline ? '📡' : '🧠'}
             </div>
             <div className="text-xs font-mono">
               <div className="text-slate-400 font-bold">SILNIK ANALIZY AI</div>
-              <div className="text-emerald-450 font-semibold flex items-center gap-1">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-                Gemini-3.5-TaxActive
-              </div>
+              {isOffline ? (
+                <div className="text-rose-400 font-semibold flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
+                  TRYB OFFLINE (Brak połączenia)
+                </div>
+              ) : (
+                <div className="text-emerald-450 font-semibold flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                  {getLlmEngineLabel()}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -528,8 +564,32 @@ export default function TaxAdvisorAssistant({ state }: TaxAdvisorAssistantProps)
             </div>
           )}
 
+          {/* Offline Placeholder Card */}
+          {isOffline && !loading && (
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-xs p-8 text-center space-y-6" id="offline-placeholder-card">
+              <div className="w-16 h-16 bg-rose-50 border border-rose-200 rounded-full flex items-center justify-center text-rose-500 mx-auto shadow-2xs">
+                <AlertCircle className="w-8 h-8" />
+              </div>
+              <div className="space-y-3 max-w-md mx-auto">
+                <h4 className="font-bold text-slate-900 text-sm tracking-tight font-display uppercase">
+                  Brak połączenia z Internetem
+                </h4>
+                <p className="text-xs text-slate-500 leading-relaxed font-sans">
+                  Sztuczna inteligencja i asystent weryfikacji kosztów wymagają <strong>aktywnego połączenia z Internetem</strong> do pracy z modelami językowymi. W tym trybie żadne podpowiedzi, rekomendacje podatkowe ani analizy prawne nie mogą zostać wygenerowane.
+                </p>
+                <div className="bg-slate-50/50 border border-slate-200 rounded-2xl p-4 text-left space-y-3 shadow-3xs">
+                  <span className="font-bold text-slate-800 block text-[11px] uppercase tracking-wider">Wymagana Akcja:</span>
+                  <ul className="list-disc pl-4 space-y-1.5 text-slate-650 text-[11px]">
+                    <li>Upewnij się, że Twoje urządzenie posiada aktywne <strong>połączenie sieciowe (Wi-Fi lub Ethernet)</strong>.</li>
+                    <li>Zweryfikuj ustawienia <strong>Konektora Inteligencji AI (LLM API Key)</strong> w zakładce <strong>Magazyn i Kopia Zapasowa</strong> na dole ekranu, jeżeli korzystasz z własnego klucza API lub dostawcy.</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Qualification Core Result Panel */}
-          {currentResult && !loading && (
+          {currentResult && !loading && !isOffline && (
             <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden animate-fade-in" id="qualification-audit-result-main">
               
               {/* Header Status Bar from Safety Level */}
@@ -645,7 +705,7 @@ export default function TaxAdvisorAssistant({ state }: TaxAdvisorAssistantProps)
           )}
 
           {/* Help notice if nothing is searched yet */}
-          {!currentResult && !loading && (
+          {!currentResult && !loading && !isOffline && (
             <div className="bg-slate-50 border border-slate-200 rounded-3xl p-8 text-center space-y-3" id="no-result-helper-message">
               <div className="w-12 h-12 bg-white border border-slate-200 rounded-full flex items-center justify-center text-lg mx-auto shadow-2xs">
                 💡
