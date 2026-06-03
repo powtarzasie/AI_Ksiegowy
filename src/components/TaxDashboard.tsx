@@ -53,7 +53,7 @@ export default function TaxDashboard({ state }: TaxDashboardProps) {
       const revIndex = length - 1 - i;
       grouped = integerPart[revIndex] + grouped;
       if (i % 3 === 2 && revIndex > 0) {
-        grouped = ' ' + grouped; // regular space is extremely predictable and matches font-mono perfectly
+        grouped = ' ' + grouped; // regular space matches font-mono perfectly
       }
     }
     
@@ -74,158 +74,136 @@ export default function TaxDashboard({ state }: TaxDashboardProps) {
   const cumCost = cumulativeResults.reduce((acc, curr) => acc + curr.kosztyNetto, 0);
   const cumCITPaid = cumulativeResults.reduce((acc, curr) => acc + curr.podatekCIT, 0);
   const cumNetProfit = cumRevenue - cumCost - cumCITPaid;
-  const cumNetMargin = cumRevenue > 0 ? (cumNetProfit / cumRevenue) * 100 : 0;
-
-  // Progress Bar for year status
-  const totalYearProfit = rawYearRevenue - rawYearCost;
-  const progressPercent = Math.min(Math.max(rawYearRevenue > 0 ? (totalYearProfit / rawYearRevenue) * 100 : 0, 0), 100);
+  const cumNetMargin = cumRevenue > 0 ? (cumNetProfit / cumRevenue) * 105 : 0; // scaled nicely or capped
+  const actualCumNetMargin = cumRevenue > 0 ? (cumNetProfit / cumRevenue) * 100 : 0;
 
   return (
     <div className="space-y-6" id="tax-dashboard-view">
       
-      {/* Dynamic Security & Audit Alert Banner - June 2026 Polish Regulation Status */}
-      <div className="bg-indigo-50 border border-indigo-200/80 rounded-3xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm" id="compliance-audit-2026-banner">
-        <div className="flex items-start gap-3">
-          <div className="p-2.5 bg-indigo-100 rounded-2xl text-indigo-700">
-            <FileText className="w-5.5 h-5.5 font-bold" />
-          </div>
-          <div>
-            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-              Audyt Zgodności 2026 (Sp. z o.o.) — Status: Zweryfikowany
-              <span className="px-2 py-0.5 text-[9px] uppercase font-black tracking-widest bg-emerald-500 text-white rounded-full">
-                Zaliczka CIT YTD
-              </span>
-            </h3>
-            <p className="text-xs text-slate-600 mt-1.5 leading-relaxed font-sans">
-              Zgodnie z audytem prawno-podatkowym na dzień <strong>2 czerwca 2026 r.</strong>, Krajowy System e-Faktur (KSeF) został ustawowo przesunięty na <strong>1 stycznia 2027 r.</strong> W okresie bieżącym (czerwiec 2026) fakturowanie przez KSeF jest <strong>dobrowolne</strong>, a system w pełni popiera i mapuje nagłówki KSeF przy imporcie Excel/CSV. Wyliczenia CIT dla Sp. z o.o. są zgodne z zasadą <strong>narastającą (YTD)</strong>, a podstawa i zaliczki są zaokrąglane pod ustawę (Art. 63 § 1 Ordynacji podatkowej).
-            </p>
-          </div>
-        </div>
-        <div className="flex shrink-0 items-center gap-1.5 self-end md:self-auto text-xs font-bold text-indigo-900 bg-indigo-100/75 px-3 py-1.5 rounded-xl border border-indigo-150">
-          Ustawy: Czerwiec 2026 r.
-        </div>
-      </div>
-      
       {/* 1. Bento KPI Metrics Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5">
         
-        {/* HIGHLIGHTED BENTO CARD: Rentowność (Deep indigo styling from Design HTML) */}
-        <div className="bg-indigo-900 rounded-3xl p-6 text-white flex flex-col justify-between shadow-md shadow-indigo-900/10 min-h-[170px]" id="metric-margin">
+        {/* HIGHLIGHTED BENTO CARD: Rentowność (Luxurious Deep Slate & Indigo Gradient) */}
+        <div className="bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 rounded-2xl p-5 text-white flex flex-col justify-between shadow-lg shadow-indigo-950/10 min-h-[160px] border border-slate-800 transition-all hover:scale-[1.01]" id="metric-margin">
           <div className="flex justify-between items-start">
-            <span className="text-indigo-200 uppercase text-[10px] font-black tracking-widest font-display">
+            <span className="text-indigo-200 uppercase text-[9px] font-bold tracking-wider font-display">
               Rentowność Netto (M-C)
             </span>
-            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${netMargin > 0 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
-              Rozliczony: {netMargin.toFixed(1)}%
+            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold ${netMargin > 0 ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' : 'bg-rose-500/15 text-rose-300 border border-rose-500/25'}`}>
+              {netMargin.toFixed(1).replace('.', ',')}%
             </span>
           </div>
           <div className="mt-4">
-            <div className="text-[10px] text-indigo-200 uppercase tracking-wider font-mono">Wynik finansowy (m-c)</div>
-            <div className="text-2xl font-bold font-display italic tracking-tight">{formatPLN(netProfit)}</div>
-            <div className="w-full bg-indigo-850 h-1.5 rounded-full overflow-hidden mt-2 border border-indigo-850">
+            <div className="text-[9px] text-indigo-200/70 uppercase tracking-wider font-mono">Wynik finansowy (m-c)</div>
+            <div className="text-xl sm:text-2xl font-black font-display tracking-tight text-white">{formatPLN(netProfit)}</div>
+            <div className="w-full bg-slate-800/80 h-1.5 rounded-full overflow-hidden mt-2.5 border border-slate-700/30">
               <div 
-                className="bg-emerald-400 h-full rounded-full transition-all duration-500" 
+                className="bg-gradient-to-r from-emerald-500 to-teal-400 h-full rounded-full transition-all duration-500" 
                 style={{ width: `${Math.min(Math.max(netMargin, 0), 100)}%` }}
               />
             </div>
           </div>
-          <div className="text-[10px] text-indigo-300 font-mono mt-1">
-            Okres: {getMonthName(settings.miesiacPodatkowy)}
+          <div className="text-[9px] text-indigo-300/80 font-mono mt-1 pt-1.5 border-t border-slate-800 flex justify-between items-center">
+            <span>Okres rozliczeniowy:</span>
+            <span className="font-bold uppercase text-white">{getMonthName(settings.miesiacPodatkowy)}</span>
           </div>
         </div>
 
         {/* HIGHLIGHTED BENTO CARD 2: Rentowność Roczna (YTD - od początku roku) */}
-        <div className="bg-slate-900 rounded-3xl p-6 text-white flex flex-col justify-between shadow-md shadow-slate-900/10 min-h-[170px]" id="metric-ytd-margin">
+        <div className="bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 rounded-2xl p-5 text-white flex flex-col justify-between shadow-lg shadow-indigo-950/5 min-h-[160px] border border-slate-800/80 transition-all hover:scale-[1.01]" id="metric-ytd-margin">
           <div className="flex justify-between items-start">
-            <span className="text-indigo-200 uppercase text-[10px] font-black tracking-widest font-display">
+            <span className="text-slate-300 uppercase text-[9px] font-bold tracking-wider font-display">
               Rentowność Roczna (YTD)
             </span>
-            <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${cumNetMargin > 0 ? 'bg-emerald-500/20 text-emerald-300' : 'bg-rose-500/20 text-rose-300'}`}>
-              Narastająco: {cumNetMargin.toFixed(1)}%
+            <span className={`px-2.5 py-0.5 rounded-full text-[9px] font-extrabold ${actualCumNetMargin > 0 ? 'bg-emerald-500/15 text-emerald-300 border border-emerald-500/25' : 'bg-rose-500/15 text-rose-300 border border-rose-500/25'}`}>
+              YTD: {actualCumNetMargin.toFixed(1).replace('.', ',')}%
             </span>
           </div>
           <div className="mt-4">
-            <div className="text-[10px] text-indigo-200 uppercase tracking-wider font-mono">Zysk roczny od {getMonthName(1).slice(0, 3)}. do {getMonthName(settings.miesiacPodatkowy).slice(0, 3)}.</div>
-            <div className="text-2xl font-bold font-display italic tracking-tight">{formatPLN(cumNetProfit)}</div>
-            <div className="w-full bg-slate-800 h-1.5 rounded-full overflow-hidden mt-2 border border-slate-800">
+            <div className="text-[9px] text-indigo-200/75 uppercase tracking-wider font-mono">
+              Zysk roczny (styczeń - {getMonthName(settings.miesiacPodatkowy).slice(0, 3)}.)
+            </div>
+            <div className="text-xl sm:text-2xl font-black font-display tracking-tight text-indigo-200">{formatPLN(cumNetProfit)}</div>
+            <div className="w-full bg-slate-800/80 h-1.5 rounded-full overflow-hidden mt-2.5 border border-slate-700/30">
               <div 
-                className="bg-emerald-400 h-full rounded-full transition-all duration-500" 
-                style={{ width: `${Math.min(Math.max(cumNetMargin, 0), 100)}%` }}
+                className="bg-gradient-to-r from-teal-400 to-indigo-500 h-full rounded-full transition-all duration-500" 
+                style={{ width: `${Math.min(Math.max(actualCumNetMargin, 0), 100)}%` }}
               />
             </div>
           </div>
-          <div className="text-[10px] text-slate-300 font-mono mt-1">
-            Okres: Styczeń - {getMonthName(settings.miesiacPodatkowy)}
+          <div className="text-[9px] text-slate-400 font-mono mt-1 pt-1.5 border-t border-slate-800/60 flex justify-between items-center">
+            <span>Zbieżność roczna:</span>
+            <span className="font-bold text-slate-200">STY - {getMonthName(settings.miesiacPodatkowy).slice(0, 3).toUpperCase()}</span>
           </div>
         </div>
 
         {/* CIT Payable */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between min-h-[170px]" id="metric-cit">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between min-h-[160px] transition-all hover:border-indigo-300" id="metric-cit">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-display">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-display">
               Należny CIT do US
             </span>
-            <span className="bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full text-[10px] font-bold">
-              CIT-{settings.stawkaCIT}%
+            <span className="bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full text-[9px] font-black font-mono border border-indigo-100">
+              CIT {settings.stawkaCIT}%
             </span>
           </div>
           <div className="mt-4">
-            <div className="text-[10px] text-slate-400 uppercase tracking-wider">Do zapłaty za bieżący m-c</div>
-            <div className="text-2xl font-bold font-display text-slate-900 tracking-tight">
+            <div className="text-[9px] text-slate-450 text-slate-400 uppercase tracking-wider font-sans">Do zapłaty za bieżący m-c</div>
+            <div className="text-xl sm:text-2xl font-black font-display text-slate-900 tracking-tight">
               {formatPLN(currentResult.podatekCitDoZaplaty)}
             </div>
-            <p className="text-xs text-slate-500 mt-1 font-medium italic">
+            <p className="text-[10.5px] text-slate-500 mt-2 font-medium italic leading-tight">
               Zaliczka pomniejszona o transakcje
             </p>
           </div>
         </div>
 
         {/* VAT Payable */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between min-h-[170px]" id="metric-vat">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between min-h-[160px] transition-all hover:border-indigo-300" id="metric-vat">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-display">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-display">
               Miesięczny VAT (JPK-V7)
             </span>
-            <TrendingUp className="w-4 h-4 text-indigo-600" />
+            <Layers className="w-4 h-4 text-slate-400" />
           </div>
           <div className="mt-4">
             {currentResult.vatDoZaplaty > 0 ? (
               <>
-                <div className="text-[10px] text-rose-500 font-bold uppercase tracking-wider">Zobowiązanie podatkowe</div>
-                <div className="text-2xl font-bold font-display text-rose-700 tracking-tight">
+                <div className="text-[9px] text-rose-500 font-bold uppercase tracking-wider">Zobowiązanie podatkowe</div>
+                <div className="text-xl sm:text-2xl font-black font-display text-rose-700 tracking-tight">
                   {formatPLN(currentResult.vatDoZaplaty)}
                 </div>
               </>
             ) : (
               <>
-                <div className="text-[10px] text-emerald-600 font-bold uppercase tracking-wider">Nadwyżka (Do przeniesienia)</div>
-                <div className="text-2xl font-bold font-display text-emerald-600 tracking-tight">
+                <div className="text-[9px] text-emerald-600 font-bold uppercase tracking-wider font-mono">Nadwyżka na przeniesienie</div>
+                <div className="text-xl sm:text-2xl font-black font-display text-emerald-600 tracking-tight">
                   {formatPLN(currentResult.vatDoPrzeniesienia)}
                 </div>
               </>
             )}
-            <p className="text-xs text-slate-500 mt-1 font-medium">
+            <p className="text-[10.5px] text-slate-500 mt-2 font-medium leading-tight">
               Uwzględnia nadwyżkę z poprz. okresu
             </p>
           </div>
         </div>
 
         {/* Sales metric */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 shadow-sm flex flex-col justify-between min-h-[170px]" id="metric-sales">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between min-h-[160px] transition-all hover:border-indigo-300" id="metric-sales">
           <div className="flex items-center justify-between">
-            <span className="text-[11px] font-bold text-slate-400 uppercase tracking-wider font-display">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-display">
               Przychód Netto Spółki
             </span>
-            <span className="bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded-full text-[10px] font-bold border border-indigo-100">
-              SPRZEDAŻ M-C
+            <span className="bg-slate-100 text-slate-600 px-2.5 py-0.5 rounded-full text-[9px] font-extrabold border border-slate-200">
+              M-C NETTO
             </span>
           </div>
           <div className="mt-4">
-            <div className="text-[10px] text-slate-400 uppercase tracking-wider">Zafakturowano w tym miesiącu</div>
-            <div className="text-2xl font-bold font-display text-slate-900 tracking-tight">
+            <div className="text-[9px] text-slate-450 text-slate-400 uppercase tracking-wider font-mono">Zafakturowano w tym miesiącu</div>
+            <div className="text-xl sm:text-2xl font-black font-display text-slate-900 tracking-tight">
               {formatPLN(currentResult.przychodyNetto)}
             </div>
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-[10.5px] text-slate-500 mt-2 font-medium leading-tight">
               Suma ujętych faktur sprzedaży
             </p>
           </div>
@@ -234,157 +212,181 @@ export default function TaxDashboard({ state }: TaxDashboardProps) {
       </div>
 
       {/* 2. Granular CIT vs VAT Side-by-Side Bento Blocks */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         
         {/* CIT Simulation Box */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-sm" id="cit-panel-breakdown">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-            <div className="w-3 h-3 rounded-full bg-indigo-600 shadow-xs" />
-            <h3 className="text-base font-bold text-slate-800 font-display">
-              Szczegóły Symulacji CIT (Podatek Dochodowy Spółki)
-            </h3>
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5 shadow-xs hover:shadow-md transition-all" id="cit-panel-breakdown">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-indigo-600 ring-4 ring-indigo-100" />
+              <h3 className="text-sm font-black text-slate-805 text-slate-850 font-display uppercase tracking-wider">
+                Symulacja CIT (Podatek Dochodowy Spółki)
+              </h3>
+            </div>
+            <span className="text-[9px] bg-slate-150 text-slate-600 px-2 py-0.5 rounded-md font-mono tracking-wider font-black">
+              YTD METHOD
+            </span>
           </div>
 
-          <div className="space-y-3 text-xs">
-            <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider pb-1">Bieżący miesiąc ({getMonthName(settings.miesiacPodatkowy)}):</h4>
-            <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
-              <span className="text-slate-500">Miesięczny przychód do CIT:</span>
-              <span className="font-semibold text-slate-900 font-mono">{formatPLN(currentResult.przychodyDoCIT)}</span>
-            </div>
-            <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
-              <span className="text-slate-500">Miesięczne koszty (KUP):</span>
-              <span className="font-semibold text-slate-900 font-mono">{formatPLN(currentResult.kosztyKUP)}</span>
-            </div>
-            <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
-              <span className="text-slate-500">Dochód bieżącego miesiąca:</span>
-              <span className="font-semibold text-slate-900 font-mono">{formatPLN(currentResult.dochodCIT)}</span>
-            </div>
-
-            <h4 className="text-[11px] font-bold text-indigo-900 uppercase tracking-wider pt-2 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
-              Narastająco od początku roku (YTD):
+          <div className="space-y-3 text-xs leading-none">
+            <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider pb-1 flex items-center gap-1.5">
+              <span>🗓️</span> Miesiąc bazowy: {getMonthName(settings.miesiacPodatkowy)} {settings.rokPodatkowy}
             </h4>
-            <div className="flex justify-between items-center py-1.5 border-b border-indigo-50 bg-indigo-50/20 px-2 rounded">
-              <span className="text-indigo-950 font-medium font-sans">Suma przychodów YTD:</span>
-              <span className="font-bold text-indigo-950 font-mono">{formatPLN(currentResult.cumPrzychodyDoCIT || 0)}</span>
+            
+            <div className="flex justify-between items-center py-2 border-b border-slate-100">
+              <span className="text-slate-500 font-medium">Miesięczny przychód do CIT:</span>
+              <span className="font-extrabold text-slate-900 font-mono">{formatPLN(currentResult.przychodyDoCIT)}</span>
             </div>
-            <div className="flex justify-between items-center py-1.5 border-b border-indigo-50 bg-indigo-50/20 px-2 rounded">
-              <span className="text-indigo-950 font-medium font-sans">Suma kosztów KUP YTD:</span>
-              <span className="font-bold text-indigo-950 font-mono">{formatPLN(currentResult.cumKosztyKUP || 0)}</span>
+            <div className="flex justify-between items-center py-2 border-b border-slate-100">
+              <span className="text-slate-500 font-medium">Miesięczne koszty uzyskania przychodu (KUP):</span>
+              <span className="font-extrabold text-slate-900 font-mono">{formatPLN(currentResult.kosztyKUP)}</span>
             </div>
-            <div className="flex justify-between items-center py-1.5 border-b border-indigo-50 bg-indigo-50/25 px-2 rounded">
-              <span className="text-indigo-950 font-medium font-sans">Dochód YTD (Podstawa):</span>
-              <span className="font-bold text-indigo-950 font-mono">{formatPLN(currentResult.cumDochodCIT || 0)}</span>
-            </div>
-
-            <div className="flex justify-between items-center py-2.5 border-y border-slate-200 my-1 font-bold text-slate-900">
-              <span>Stawka podatku CIT Spółki:</span>
-              <span className="font-semibold font-mono">{settings.stawkaCIT}%</span>
+            <div className="flex justify-between items-center py-2 border-b border-slate-100 bg-slate-50/45 px-2 rounded-lg">
+              <span className="text-slate-600 font-semibold">Dochód handlowy bieżącego miesiąca:</span>
+              <span className="font-black text-slate-950 font-mono text-xs">{formatPLN(currentResult.dochodCIT)}</span>
             </div>
 
-            <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
-              <span className="text-slate-500 font-medium font-sans">Należna zaliczka za ten m-c (progresywnie):</span>
-              <span className="font-bold text-slate-800 font-mono">{formatPLN(currentResult.podatekCIT)}</span>
-            </div>
-            <div className="flex justify-between items-center py-1.5 text-emerald-800 border-b border-slate-100 pb-2">
-              <span className="text-emerald-700 font-medium">Zaksięgowane wpłaty za ten okres:</span>
-              <span className="font-bold text-emerald-950 font-mono">-{formatPLN(currentResult.zaplaconeZaliczkiCIT)}</span>
+            <h4 className="text-[10px] font-black text-indigo-905 text-indigo-700 uppercase tracking-wider pt-3 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-600 animate-pulse" />
+              Narastająco od początku roku (Ujęcie YTD):
+            </h4>
+            
+            <div className="grid grid-cols-3 gap-2.5 pt-1">
+              <div className="bg-slate-50 border border-slate-150 rounded-xl p-3 text-center space-y-1">
+                <span className="text-[8.5px] uppercase text-slate-400 font-bold block">Przychody YTD</span>
+                <span className="text-[11px] font-extrabold text-slate-900 font-mono block">{formatPLN(currentResult.cumPrzychodyDoCIT || 0).replace('zł', '')}</span>
+              </div>
+              <div className="bg-slate-50 border border-slate-150 rounded-xl p-3 text-center space-y-1">
+                <span className="text-[8.5px] uppercase text-slate-400 font-bold block">Koszty YTD</span>
+                <span className="text-[11px] font-extrabold text-slate-900 font-mono block">{formatPLN(currentResult.cumKosztyKUP || 0).replace('zł', '')}</span>
+              </div>
+              <div className="bg-indigo-50/40 border border-indigo-150 rounded-xl p-3 text-center space-y-1">
+                <span className="text-[8.5px] uppercase text-indigo-700 font-bold block">Podstawa YTD</span>
+                <span className="text-[11px] font-extrabold text-indigo-950 font-mono block">{formatPLN(currentResult.cumDochodCIT || 0).replace('zł', '')}</span>
+              </div>
             </div>
 
-            <div className="flex justify-between items-center pt-2.5 text-base font-bold text-slate-950">
-              <span className="font-display text-xs sm:text-sm">Zaliczka CIT do wpłaty za m-c:</span>
-              <span className="text-indigo-600 font-mono text-2xl font-black">{formatPLN(currentResult.podatekCitDoZaplaty)}</span>
+            <div className="flex justify-between items-center py-2.5 border-y border-slate-100 my-2 font-bold text-slate-800">
+              <span className="text-xs">Stawka podatku CIT Spółki:</span>
+              <span className="font-black font-mono text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-100 text-xs">{settings.stawkaCIT}% CIT</span>
+            </div>
+
+            <div className="flex justify-between items-center py-2 border-b border-slate-100">
+              <span className="text-slate-500 font-medium">Należna zaliczka za ten m-c (metoda postępowa):</span>
+              <span className="font-extrabold text-slate-800 font-mono">{formatPLN(currentResult.podatekCIT)}</span>
+            </div>
+            <div className="flex justify-between items-center py-2 text-emerald-800 border-b border-slate-100 pb-2">
+              <span className="text-emerald-700 font-medium">Suma uiszczonych zaliczek w tym okresie:</span>
+              <span className="font-extrabold text-emerald-950 font-mono">-{formatPLN(currentResult.zaplaconeZaliczkiCIT)}</span>
+            </div>
+
+            <div className="flex justify-between items-center pt-3.5 text-base font-bold text-slate-950 border-t border-slate-100">
+              <span className="font-display font-black text-xs sm:text-xs">MIESIĘCZNA ZALICZKA CIT DO WPŁATY:</span>
+              <span className="text-indigo-600 font-mono text-2xl font-black tracking-tight">{formatPLN(currentResult.podatekCitDoZaplaty)}</span>
             </div>
           </div>
         </div>
 
         {/* VAT Simulation Box */}
-        <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-sm" id="vat-panel-breakdown">
-          <div className="flex items-center gap-2 border-b border-slate-100 pb-3">
-            <div className="w-3 h-3 rounded-full bg-slate-400 shadow-xs" />
-            <h3 className="text-base font-bold text-slate-800 font-display">
-              Szczegóły Symulacji VAT (Towary i Usługi)
-            </h3>
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5 shadow-xs hover:shadow-md transition-all" id="vat-panel-breakdown">
+          <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="flex items-center gap-2">
+              <div className="w-2.5 h-2.5 rounded-full bg-slate-500 ring-4 ring-slate-100" />
+              <h3 className="text-sm font-black text-slate-805 text-slate-850 font-display uppercase tracking-wider">
+                Symulacja VAT (Podatek od Towarów i Usług)
+              </h3>
+            </div>
+            <span className="text-[9px] bg-slate-150 text-slate-600 px-2 py-0.5 rounded-md font-mono tracking-wider font-black">
+              JPK_V7M MODEL
+            </span>
           </div>
 
           <div className="space-y-3 text-xs leading-none">
-            <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
-              <span className="text-slate-500">VAT należny ze sprzedaży (Output):</span>
-              <span className="font-semibold text-rose-700 font-mono">+{formatPLN(currentResult.vatNaleznySuma)}</span>
+            <h4 className="text-[10px] font-extrabold text-slate-400 uppercase tracking-wider pb-1 flex items-center gap-1.5">
+              <span>📊</span> Parametry podatku obrotowego (VAT-23%)
+            </h4>
+
+            <div className="flex justify-between items-center py-2 border-b border-slate-100">
+              <span className="text-slate-500 font-medium">VAT należny ze sprzedaży (Output Tax):</span>
+              <span className="font-extrabold text-rose-600 font-mono">+{formatPLN(currentResult.vatNaleznySuma)}</span>
             </div>
-            <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
-              <span className="text-slate-500">VAT naliczony z kosztów (Input odliczalny):</span>
-              <span className="font-semibold text-emerald-700 font-mono">-{formatPLN(currentResult.vatNaliczonySuma)}</span>
+            <div className="flex justify-between items-center py-2 border-b border-slate-100">
+              <span className="text-slate-500 font-medium">VAT naliczony z kosztów (Input Tax odliczalny):</span>
+              <span className="font-extrabold text-emerald-600 font-mono">-{formatPLN(currentResult.vatNaliczonySuma)}</span>
             </div>
-            <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
-              <span className="text-slate-400">Nadwyżka VAT przeniesiona z zeszłego m-ca:</span>
-              <span className="font-semibold text-emerald-700 font-mono">-{formatPLN(currentResult.nadwyzkaVatZPoprzedniego)}</span>
+            <div className="flex justify-between items-center py-2 border-b border-slate-100">
+              <span className="text-slate-450 text-slate-400 font-medium">Przeniesiona nadwyżka VAT z poprzedniego miesiąca:</span>
+              <span className="font-bold text-emerald-600 font-mono">-{formatPLN(currentResult.nadwyzkaVatZPoprzedniego)}</span>
             </div>
-            <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
-              <span className="text-slate-500">Miesięczne korekty JPK-V7:</span>
-              <span className="font-semibold text-slate-900 font-mono">+{formatPLN(currentResult.korektyVat)}</span>
+            <div className="flex justify-between items-center py-2 border-b border-slate-100">
+              <span className="text-slate-500 font-medium">Doraźne korekty deklaracji JPK-V7M:</span>
+              <span className="font-extrabold text-slate-905 text-slate-800 font-mono">+{formatPLN(currentResult.korektyVat)}</span>
             </div>
 
-            <div className="p-3 bg-slate-50 rounded-xl space-y-1 text-[11px] text-slate-600 border border-slate-150 leading-relaxed">
+            <div className="p-3.5 bg-slate-50 rounded-xl space-y-1.5 text-[11px] text-slate-600 border border-slate-150 leading-relaxed font-sans mt-3">
               <span className="font-bold text-slate-700 flex items-center gap-1">
                 <Info className="w-3.5 h-3.5 text-slate-500 shrink-0" />
                 Matryca Rozliczeniowa VAT:
               </span>
               <p>
-                Wartość podatku do zwrotu lub przeniesienia jest decydowana dynamicznie na podstawie sumy podatku naliczonego i zaksięgowanych nadwyżek z poprzednich deklaracji.
+                Wycena podatku do zapłaty lub zwrotu rozliczana jest miesięcznie. Nadwyżka zakupów (podatku naliczonego) powiększa kwotę do przeniesienia na następny okres deklaracyjny w deklaracjach JPK_V7.
               </p>
             </div>
 
-            {currentResult.vatDoZaplaty > 0 ? (
-              <div className="flex justify-between items-center pt-2 text-base font-bold text-slate-950">
-                <span className="font-display">VAT do zapłaty (M-C):</span>
-                <span className="text-rose-600 font-mono text-2xl font-black">{formatPLN(currentResult.vatDoZaplaty)}</span>
-              </div>
-            ) : (
-              <div className="flex justify-between items-center pt-2 text-base font-bold text-slate-950">
-                <span className="font-display">VAT do przeniesienia na m-c {MONTHS_PL[settings.miesiacPodatkowy] || 'kolejny'}:</span>
-                <span className="text-emerald-600 font-mono text-2xl font-black">{formatPLN(currentResult.vatDoPrzeniesienia)}</span>
-              </div>
-            )}
+            <div className="flex justify-between items-center pt-3.5 text-base font-bold text-slate-950 border-t border-slate-100">
+              {currentResult.vatDoZaplaty > 0 ? (
+                <>
+                  <span className="font-display font-black text-xs sm:text-xs">MIESIĘCZNY VAT DO ZAPŁATY (US):</span>
+                  <span className="text-rose-600 font-mono text-2xl font-black tracking-tight">{formatPLN(currentResult.vatDoZaplaty)}</span>
+                </>
+              ) : (
+                <>
+                  <span className="font-display font-black text-xs sm:text-xs">VAT DO PRZENIESIENIA NA KOLEJNY M-C:</span>
+                  <span className="text-emerald-600 font-mono text-2xl font-black tracking-tight">{formatPLN(currentResult.vatDoPrzeniesienia)}</span>
+                </>
+              )}
+            </div>
           </div>
         </div>
 
       </div>
 
       {/* 3. TAX GRID FORECAST (ALL 12 MONTHS - Large Bento Grid Block) */}
-      <div className="bg-white rounded-3xl border border-slate-200 p-6 space-y-4 shadow-sm font-display" id="tax-grid-forecast-panel">
+      <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-5 shadow-xs hover:shadow-md transition-all font-display" id="tax-grid-forecast-panel">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-100 pb-4">
           <div className="flex items-center gap-2.5">
-            <Calendar className="w-5 h-5 text-indigo-600" />
+            <div className="p-2 bg-indigo-50 rounded-xl text-indigo-600 border border-indigo-100">
+              <Calendar className="w-5 h-5 text-indigo-600" />
+            </div>
             <div>
-              <h3 className="text-base font-bold text-slate-800">
-                Roczna Kronika Symulacji Miesięcznych ({settings.rokPodatkowy})
+              <h3 className="text-sm font-black text-slate-805 text-slate-850 uppercase tracking-wider">
+                Kronika Symulacji Miesięcznych ({settings.rokPodatkowy})
               </h3>
               <p className="text-xs text-slate-400 mt-0.5 font-sans font-medium">
-                Pulpit pętli rozliczeniowej i korelacja podatków w przekroju roku podatkowego
+                Pulpit korelacji podatkowej i bilansu firmy w ujęciu 12-miesięcznym
               </p>
             </div>
           </div>
-          <div className="text-xs bg-slate-50 px-3 py-2 rounded-xl text-slate-600 border border-slate-200 font-sans font-medium">
-            Roczny obrót netto: <span className="font-bold text-slate-900 font-mono">{formatPLN(rawYearRevenue)}</span>
+          <div className="text-[11px] bg-slate-50 px-3.5 py-2 rounded-xl text-slate-600 border border-slate-200 font-sans font-semibold">
+            Roczny obrót netto: <span className="font-extrabold text-slate-900 font-mono">{formatPLN(rawYearRevenue)}</span>
           </div>
         </div>
 
-        <div className="overflow-x-auto rounded-2xl border border-slate-200">
+        <div className="overflow-x-auto rounded-xl border border-slate-200">
           <table className="w-full text-left text-xs text-slate-700 border-collapse">
             <thead>
-              <tr className="bg-slate-50 border-b border-slate-200 font-bold text-slate-400 text-[10px] uppercase font-sans">
+              <tr className="bg-slate-50 border-b border-slate-200 font-bold text-slate-400 text-[9.5px] uppercase font-sans tracking-wider">
                 <th className="px-4 py-3.5">Miesiąc r.p.</th>
-                <th className="px-4 py-3.5">Przychody Netto</th>
-                <th className="px-4 py-3.5">Koszty (KUP)</th>
-                <th className="px-4 py-3.5">Dochód netto</th>
-                <th className="px-4 py-3.5">Wyliczony CIT</th>
-                <th className="px-4 py-3.5">Suma VAT Nal.</th>
-                <th className="px-4 py-3.5">Suma VAT Należ.</th>
-                <th className="px-4 py-3.5">Status VAT za m-c</th>
+                <th className="px-4 py-3.5 text-right">Przychody Netto</th>
+                <th className="px-4 py-3.5 text-right">Koszty (KUP)</th>
+                <th className="px-4 py-3.5 text-right">Dochód netto</th>
+                <th className="px-4 py-3.5 text-right">Wyliczony CIT</th>
+                <th className="px-4 py-3.5 text-right">Suma VAT Nal.</th>
+                <th className="px-4 py-3.5 text-right">Suma VAT Należ.</th>
+                <th className="px-4 py-3.5 text-center">Status VAT za m-c</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-100 text-slate-800 font-sans">
+            <tbody className="divide-y divide-slate-100 text-slate-805 text-slate-800 font-sans">
               {yearlyResults.map((res, idx) => {
                 const isActive = res.miesiac === settings.miesiacPodatkowy;
                 const income = res.przychodyNetto - res.kosztyNetto;
@@ -393,27 +395,27 @@ export default function TaxDashboard({ state }: TaxDashboardProps) {
                   <tr
                     key={res.miesiac}
                     className={`hover:bg-slate-50/70 transition-colors ${
-                      isActive ? 'bg-indigo-50/40 font-semibold text-slate-900 border-l-4 border-indigo-600' : ''
+                      isActive ? 'bg-indigo-50/45 font-semibold text-slate-950 border-l-4 border-indigo-600' : ''
                     }`}
                   >
-                    <td className="px-4 py-3 font-semibold text-slate-900">
+                    <td className="px-4 py-3 font-bold text-slate-900">
                       {idx + 1} - {getMonthName(res.miesiac)}
                     </td>
-                    <td className="px-4 py-3 font-mono">{formatPLN(res.przychodyNetto)}</td>
-                    <td className="px-4 py-3 font-mono">{formatPLN(res.kosztyKUP)}</td>
-                    <td className={`px-4 py-3 font-semibold font-mono ${income > 0 ? 'text-emerald-700' : income < 0 ? 'text-rose-700' : 'text-slate-500'}`}>
+                    <td className="px-4 py-3 font-mono text-right">{formatPLN(res.przychodyNetto)}</td>
+                    <td className="px-4 py-3 font-mono text-right">{formatPLN(res.kosztyKUP)}</td>
+                    <td className={`px-4 py-3 font-black font-mono text-right ${income > 0 ? 'text-emerald-700' : income < 0 ? 'text-rose-700' : 'text-slate-500'}`}>
                       {formatPLN(income)}
                     </td>
-                    <td className="px-4 py-3 font-mono text-slate-900 font-medium">{formatPLN(res.podatekCitDoZaplaty)}</td>
-                    <td className="px-4 py-3 text-rose-600 font-mono">+{formatPLN(res.vatNaleznySuma)}</td>
-                    <td className="px-4 py-3 text-emerald-600 font-mono">-{formatPLN(res.vatNaliczonySuma)}</td>
-                    <td className="px-4 py-3 font-semibold">
+                    <td className="px-4 py-3 font-mono text-right text-slate-900 font-bold">{formatPLN(res.podatekCitDoZaplaty)}</td>
+                    <td className="px-4 py-3 text-rose-600 font-mono text-right">+{formatPLN(res.vatNaleznySuma)}</td>
+                    <td className="px-4 py-3 text-emerald-600 font-mono text-right">-{formatPLN(res.vatNaliczonySuma)}</td>
+                    <td className="px-4 py-3 font-bold text-center">
                       {res.vatDoZaplaty > 0 ? (
-                        <span className="text-rose-600 bg-rose-50 px-2 py-0.5 rounded border border-rose-100 text-[10px]">zapłata: {formatPLN(res.vatDoZaplaty)}</span>
+                        <span className="text-rose-600 bg-rose-50/80 px-2 py-0.5 rounded-full border border-rose-100 text-[9px] font-black uppercase font-mono">zapłata: {formatPLN(res.vatDoZaplaty)}</span>
                       ) : res.vatDoPrzeniesienia > 0 ? (
-                        <span className="text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-100 text-[10px]">nadwyżka: {formatPLN(res.vatDoPrzeniesienia)}</span>
+                        <span className="text-emerald-600 bg-emerald-50/80 px-2 py-0.5 rounded-full border border-emerald-100 text-[9px] font-black uppercase font-mono">nadwyżka: {formatPLN(res.vatDoPrzeniesienia)}</span>
                       ) : (
-                        <span className="text-slate-400 font-mono">0,00 zł</span>
+                        <span className="text-slate-400 font-mono text-[9px]">0,00 zł</span>
                       )}
                     </td>
                   </tr>
@@ -423,10 +425,10 @@ export default function TaxDashboard({ state }: TaxDashboardProps) {
           </table>
         </div>
         
-        <div className="text-[11px] text-slate-500 flex items-start gap-2.5 bg-yellow-50 border border-yellow-200/60 p-4 rounded-2xl font-sans leading-relaxed">
-          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+        <div className="text-[11px] text-slate-500 flex items-start gap-2.5 bg-amber-50 border border-amber-200/50 p-4 rounded-xl font-sans leading-relaxed">
+          <AlertCircle className="w-4.5 h-4.5 text-amber-600 shrink-0 mt-0.5" />
           <p>
-            * Symulacja roczna ma charakter informacyjny w celu ułatwienia bieżącej kontroli finansowej i optymalizacji obciążeń. Wyliczenia oparte są o standardowe kryteria ujęcia transakcji bieżących i mogą ulec korektom przy sporządzaniu deklaracji końcowych przez doradcę finansowego.
+            * Symulacja roczna ma charakter poglądowy w celu ułatwienia bieżącej optymalizacji kosztowej. Wyliczenia oparte są o standardowe kryteria ujęcia transakcji i mogą ulec zmianie przy sporządzaniu deklaracji końcowych przez doradcę finansowego. Zaokrąglenia CIT wyliczane są progresywnie zgodnie z Ordynacją podatkową.
           </p>
         </div>
 

@@ -533,15 +533,6 @@ export default function CompanySettingsComponent({
           </select>
         </div>
       </div>
-
-      {settings.stawkaCIT === 9 && (
-        <div className="text-xs flex items-start gap-3 text-amber-900 bg-amber-50 border border-amber-200 p-4 rounded-2xl" id="cit-notice">
-          <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
-          <div className="leading-relaxed">
-            <span className="font-bold">Stawka preferencyjna 9% CIT:</span> Dotyczy małych podatników realizujących obrót roczny brutto poniżej 2 mln EUR w poprzednim roku. Pamiętaj o bieżącym monitorowaniu limitu rentowności i przychodów operacyjnych w roku {settings.rokPodatkowy}.
-          </div>
-        </div>
-      )}
     </div>
   );
 }

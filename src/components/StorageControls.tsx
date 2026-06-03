@@ -66,9 +66,122 @@ export default function StorageControls({
   const [isTesting, setIsTesting] = useState<boolean>(false);
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
 
+  // Database Path custom configs
+  const [dbPath, setDbPath] = useState<string>('');
+  const [defaultPath, setDefaultPath] = useState<string>('');
+  const [dbExists, setDbExists] = useState<boolean>(false);
+  const [moveData, setMoveData] = useState<boolean>(false);
+  const [isDbUpdating, setIsDbUpdating] = useState<boolean>(false);
+
+  // Fetch current database configuration on mount
+  React.useEffect(() => {
+    const fetchDbConfig = async () => {
+      try {
+        const response = await fetch('/api/db/config');
+        if (response.ok) {
+          const resJson = await response.json();
+          if (resJson.status === 'success') {
+            setDbPath(resJson.dbPath);
+            setDefaultPath(resJson.defaultPath);
+            setDbExists(resJson.exists);
+          }
+        }
+      } catch (err) {
+        console.warn('Nie można pobrać ścieżki konfiguracji bazy (brak serwera lokalnego):', err);
+      }
+    };
+    fetchDbConfig();
+  }, []);
+
+  const handleUpdateDbPath = async (customPath?: string) => {
+    const pathValue = customPath ? customPath : dbPath;
+    if (!pathValue || !pathValue.trim()) {
+      triggerNotification('Ścieżka bazy danych nie może być pusta!', true);
+      return;
+    }
+    setIsDbUpdating(true);
+    try {
+      const response = await fetch('/api/db/config', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dbPath: pathValue.trim(),
+          moveExistingData: moveData
+        })
+      });
+      if (response.ok) {
+        const resJson = await response.json();
+        if (resJson.status === 'success') {
+          setDbPath(resJson.dbPath);
+          setDbExists(true);
+          triggerNotification(resJson.message || 'Pomyślnie zaktualizowano ścieżkę bazy danych.');
+          
+          if (resJson.data) {
+            onStateImport(resJson.data);
+          }
+        } else {
+          triggerNotification(resJson.error || 'Błąd zapisu ścieżki bazy.', true);
+        }
+      } else {
+        const errJson = await response.json();
+        triggerNotification(errJson.error || 'Serwer zwrócił błąd podczas aktualizacji bazy.', true);
+      }
+    } catch (err) {
+      triggerNotification('Nie udało się zapisać lokalizacji bazy (brak serwera).', true);
+    } finally {
+      setIsDbUpdating(false);
+    }
+  };
+
+  const handleBrowseFile = async () => {
+    if (isElectron) {
+      try {
+        const electron = (window as any).require ? (window as any).require('electron') : (window as any).electron;
+        if (electron && electron.ipcRenderer) {
+          const chosenPath = await electron.ipcRenderer.invoke('browse-db-file');
+          if (chosenPath) {
+            setDbPath(chosenPath);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to browse file via Electron IPC:', err);
+        triggerNotification('Wystąpił błąd podczas otwierania okna wyboru.', true);
+      }
+    } else {
+      triggerNotification('Przeglądanie plików działa tylko w wersji desktopowej (.exe). Ręcznie wpisz ścieżkę.', true);
+    }
+  };
+
+  const handleCreateFile = async () => {
+    if (isElectron) {
+      try {
+        const electron = (window as any).require ? (window as any).require('electron') : (window as any).electron;
+        if (electron && electron.ipcRenderer) {
+          const chosenPath = await electron.ipcRenderer.invoke('select-db-file');
+          if (chosenPath) {
+            setDbPath(chosenPath);
+          }
+        }
+      } catch (err) {
+        console.error('Failed to create file via Electron IPC:', err);
+        triggerNotification('Wystąpił błąd podczas otwierania okna zapisu.', true);
+      }
+    } else {
+      triggerNotification('Tworzenie pliku bazy działa tylko w wersji desktopowej (.exe). Ręcznie wpisz ścieżkę.', true);
+    }
+  };
+
+  const handleResetToDefault = async () => {
+    if (!defaultPath) return;
+    setDbPath(defaultPath);
+    await handleUpdateDbPath(defaultPath);
+  };
+
   const isElectron = typeof window !== 'undefined' && (
     navigator.userAgent.toLowerCase().includes('electron') || 
-    !!(window as any).electron
+    !!(window as any).electron ||
+    !!(window as any).ipcRenderer ||
+    ((window as any).require && !!(window as any).require('electron'))
   );
 
   const handleProviderChange = (newProvider: LLMConfig['provider']) => {
@@ -386,56 +499,146 @@ export default function StorageControls({
 
       {/* TWO SECTIONS: desktop shell info and LLM connection configuration */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2">
-        {/* Card 1: Desktop Shell Status & Guidelines (5 columns) */}
-        <div className="lg:col-span-5 border border-slate-200 bg-slate-50/80 rounded-2xl p-5 space-y-4 flex flex-col justify-between" id="local-env-shell-card">
-          <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <Laptop className="w-5 h-5 text-indigo-600 shrink-0" />
-              <h3 className="font-bold text-slate-900 text-sm font-display tracking-tight">Tryb Środowiska Lokalnego</h3>
-            </div>
-            
-            {/* Dynamic Electron Connection Detection */}
-            <div className={`p-4 rounded-xl border flex items-start gap-3 ${
-              isElectron 
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-950' 
-                : 'bg-slate-100 border-slate-200 text-slate-800'
-            }`}>
-              <div className={`w-2.5 h-2.5 rounded-full mt-1.5 ${isElectron ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-              <div className="text-xs space-y-1">
-                <span className="font-bold block tracking-wide uppercase text-[10px]">
-                  {isElectron ? 'AKTYWNY: PROGRAM DESKTOP (ELECTRON)' : 'DETEKCJA: TRYB PRZEGLĄDARKI WEB'}
-                </span>
-                <p className="text-slate-650 text-[11px] leading-relaxed text-slate-500">
-                  {isElectron 
-                    ? 'Wykryto powłokę Electron! Zapis fizyczny JSON bezpośrednio na Twoim dysku komputera jest w pełni gotowy.' 
-                    : 'Aplikacja działa w chmurze / sandboxie przeglądarki. Dane transakcyjne są odizolowane i zapisywane w LocalStorage.'
-                  }
-                </p>
+        {/* Card 1 & 3: Left Column Container (5 columns) */}
+        <div className="lg:col-span-5 flex flex-col gap-6">
+          {/* Card 1: Desktop Shell Status & Guidelines */}
+          <div className="border border-slate-200 bg-slate-50/80 rounded-2xl p-5 space-y-4 flex-1 flex flex-col justify-between" id="local-env-shell-card">
+            <div className="space-y-4">
+              <div className="flex items-center gap-2">
+                <Laptop className="w-5 h-5 text-indigo-600 shrink-0" />
+                <h3 className="font-bold text-slate-900 text-sm font-display tracking-tight">Tryb Środowiska Lokalnego</h3>
+              </div>
+              
+              {/* Dynamic Electron Connection Detection */}
+              <div className={`p-4 rounded-xl border flex items-start gap-3 ${
+                isElectron 
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-950' 
+                  : 'bg-slate-100 border-slate-200 text-slate-800'
+              }`}>
+                <div className={`w-2.5 h-2.5 rounded-full mt-1.5 ${isElectron ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                <div className="text-xs space-y-1">
+                  <span className="font-bold block tracking-wide uppercase text-[10px]">
+                    {isElectron ? 'AKTYWNY: PROGRAM DESKTOP (ELECTRON)' : 'DETEKCJA: TRYB PRZEGLĄDARKI WEB'}
+                  </span>
+                  <p className="text-slate-650 text-[11px] leading-relaxed text-slate-500">
+                    {isElectron 
+                      ? 'Wykryto powłokę Electron! Zapis fizyczny JSON bezpośrednio na Twoim dysku komputera jest w pełni gotowy.' 
+                      : 'Aplikacja działa w chmurze / sandboxie przeglądarki. Dane transakcyjne są odizolowane i zapisywane w LocalStorage.'
+                    }
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Kroki kompilacji lokalnej (Claude Code):</span>
+                <div className="space-y-2.5 text-[11px] text-slate-600 leading-relaxed font-sans">
+                  <div className="flex gap-2">
+                    <span className="w-5 h-5 bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 rounded-md flex items-center justify-center shrink-0 text-[10px]">1</span>
+                    <p><strong>Pobierz kod z GitHub:</strong> Sklonuj repozytorium na swój lokalny komputer.</p>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="w-5 h-5 bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 rounded-md flex items-center justify-center shrink-0 text-[10px]">2</span>
+                    <p><strong>Wydaj polecenie:</strong> Poproś Claude Code:<br />
+                    <code className="bg-slate-200 border border-slate-300 font-mono text-[9.5px] px-1 py-0.5 rounded text-indigo-700 block mt-1 tracking-tight">"Skompiluj tę aplikację z Electronem do pliku .exe dla Windows"</code></p>
+                  </div>
+                  <div className="flex gap-2">
+                    <span className="w-5 h-5 bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 rounded-md flex items-center justify-center shrink-0 text-[10px]">3</span>
+                    <p><strong>Otrzymaj instalator Windows:</strong> Skrypt automatycznie podmieni mechanizm zapisu na bezpośredni zapis plików na komputerze!</p>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div className="space-y-3">
-              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Kroki kompilacji lokalnej (Claude Code):</span>
-              <div className="space-y-2.5 text-[11px] text-slate-600 leading-relaxed font-sans">
-                <div className="flex gap-2">
-                  <span className="w-5 h-5 bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 rounded-md flex items-center justify-center shrink-0 text-[10px]">1</span>
-                  <p><strong>Pobierz kod z GitHub:</strong> Sklonuj repozytorium na swój lokalny komputer.</p>
-                </div>
-                <div className="flex gap-2">
-                  <span className="w-5 h-5 bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 rounded-md flex items-center justify-center shrink-0 text-[10px]">2</span>
-                  <p><strong>Wydaj polecenie:</strong> Poproś Claude Code lokalnie:<br />
-                  <code className="bg-slate-200 border border-slate-300 font-mono text-[9.5px] px-1 py-0.5 rounded text-indigo-700 block mt-1 tracking-tight">"Skompiluj tę aplikację z Electronem do pliku .exe dla Windows"</code></p>
-                </div>
-                <div className="flex gap-2">
-                  <span className="w-5 h-5 bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 rounded-md flex items-center justify-center shrink-0 text-[10px]">3</span>
-                  <p><strong>Otrzymaj instalator Windows:</strong> Skrypt automatycznie podmieni mechanizm zapisu LocalStorage na bezpośredni zapis plików na komputerze, po czym spakuje wersję do .exe!</p>
-                </div>
-              </div>
+            <div className="text-[10px] text-slate-400 italic font-mono pt-3 border-t border-slate-150 mt-2">
+              *Zbudowane w oparciu o architekturę kompatybilną z Electron IPC Bridge.
             </div>
           </div>
 
-          <div className="text-[10px] text-slate-400 italic font-mono pt-3 border-t border-slate-150 mt-2">
-            *Zbudowane w oparciu o architekturę kompatybilną z Electron IPC Bridge.
+          {/* Card 3: Wybór Lokalizacji Bazy Danych */}
+          <div className="border border-slate-200 bg-slate-50/80 rounded-2xl p-5 space-y-4" id="db-filepath-picker-card">
+            <div className="flex items-center gap-2">
+              <Database className="w-5 h-5 text-indigo-600 shrink-0" />
+              <h3 className="font-bold text-slate-900 text-sm font-display tracking-tight">Ścieżka Bazy Danych (Plik JSON)</h3>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-[11px] text-slate-500 leading-relaxed font-sans">
+                Wybierz lokalizację na dysku, w której ma być zapisywany plik bazy danych <code className="bg-slate-200 font-mono text-[9.5px] px-1 py-0.5 rounded">.json</code> programu.
+              </p>
+
+              {/* Current database path input */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Aktualna lokalizacja</label>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={dbPath}
+                    onChange={(e) => setDbPath(e.target.value)}
+                    placeholder="Wpisz lub wybierz ścieżkę do bazy..."
+                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-950 font-mono focus:border-indigo-500 focus:outline-hidden transition-all"
+                  />
+                  {isElectron && (
+                    <button
+                      type="button"
+                      onClick={handleBrowseFile}
+                      className="px-3 bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
+                      title="Wyszukaj istniejący plik..."
+                    >
+                      Otwórz...
+                    </button>
+                  )}
+                </div>
+                {defaultPath && dbPath !== defaultPath && (
+                  <button
+                    type="button"
+                    onClick={handleResetToDefault}
+                    className="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold self-start tracking-tight cursor-pointer"
+                  >
+                    ↺ Przywróć domyślną lokalizację systemu
+                  </button>
+                )}
+              </div>
+
+              {/* Toggle to migrate files */}
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-650 select-none bg-white border border-slate-150 rounded-xl p-2.5">
+                <input 
+                  type="checkbox"
+                  checked={moveData}
+                  onChange={(e) => setMoveData(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                />
+                <div className="text-left leading-tight">
+                  <span className="block text-slate-900 text-[11px] font-bold">Przenieś obecne dane</span>
+                  <span className="text-[10px] text-slate-500 font-normal">Kopiuje aktualne transakcje i ustawienia do nowego pliku.</span>
+                </div>
+              </label>
+
+              {/* Quick instructions and warnings */}
+              <div className="text-[10px] text-slate-500 space-y-1 bg-white border border-slate-150 rounded-xl p-3 leading-relaxed">
+                <span className="font-bold text-slate-700 uppercase tracking-wide block text-[9px]">Chmura i Synchronizacja:</span>
+                <p>Możesz współdzielić ten sam plik bazy danych ze swoimi dyskami OneDrive/Dropbox/Google Drive, wybierając ścieżkę wewnątrz zsynchronizowanego katalogu!</p>
+              </div>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => handleUpdateDbPath()}
+                disabled={isDbUpdating}
+                className="flex-1 h-9 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+              >
+                {isDbUpdating ? 'Zapisywanie...' : 'Zapisz Ścieżkę'}
+              </button>
+              {isElectron && (
+                <button
+                  type="button"
+                  onClick={handleCreateFile}
+                  className="px-3 bg-white border border-slate-200 text-indigo-600 text-xs font-bold rounded-xl hover:bg-indigo-50/50 transition-colors cursor-pointer flex items-center justify-center gap-1 shrink-0"
+                >
+                  Utwórz Nową...
+                </button>
+              )}
+            </div>
           </div>
         </div>
 

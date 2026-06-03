@@ -18,7 +18,8 @@ import {
   Clipboard,
   Building2,
   Calendar,
-  AlertCircle
+  AlertCircle,
+  Mail
 } from 'lucide-react';
 
 interface TaxAdvisorAssistantProps {
@@ -45,40 +46,52 @@ interface HistoryItem {
 
 const PRE_QUALIFIED_EXAMPLES = [
   {
-    title: 'Kawa / Lunch z klientem w kawiarni',
-    query: 'Jestem na mieście, piję kawę i jem lunch z klientem (inwestorem) w celu omówienia uwag do projektu koncepcyjnego budynku. Czy mogę to ująć w koszty i jak to opisać?',
-    tags: ['Gastronomia', 'Reprezentacja'],
-    icon: '☕'
+    title: 'Rekwizyty do Home Stagingu (meble, dekoracje, teksty)',
+    query: 'Zakup designerskich lamp stojących, wazonów, pościeli, narzut i obrazów wykorzystywanych jako rekwizyty przy sesjach fotograficznych / Home Stagingu ukończonych projektów w celu podniesienia wartości portfolio biura.',
+    tags: ['Home Staging', 'Marketing'],
+    icon: '🛋️'
   },
   {
-    title: 'Markowy garnitur + buty na spotkania',
-    query: 'Kupuję markowy garnitur, marynarkę i eleganckie buty do spotkań z deweloperami. Chcę wszyć małe, subtelne logo biura na podszewce lub mankiecie. Czy to przejdzie w koszty s-ki z o.o.?',
-    tags: ['Odzież', 'Reklama'],
-    icon: '👔'
+    title: 'Profesjonalna sesja zdjęciowa i wideo realizacji',
+    query: 'Zlecenie fotografowi wykonania profesjonalnej sesji zdjęciowej oraz wideo zrealizowanego wnętrza lub budynku. Zdjęcia będą publikowane w naszym portfolio, social mediach, na stronie WWW oraz w prasie branżowej.',
+    tags: ['Marketing', 'Reklama'],
+    icon: '📸'
   },
   {
-    title: 'Kask, buty robocze i kamizelka BHP',
-    query: 'Kupuję profesjonalny kask budowlany, okulary ochronne oraz buty ze stalowym noskiem do prowadzenia osobiście nadzorów autorskich na budowach. Czy odliczę 100% CIT i VAT?',
-    tags: ['BHP', 'Nadzór'],
-    icon: '🦺'
+    title: 'Próbniki materiałowe, plansze i makiety fizyczne',
+    query: 'Zakup próbnika tynków elewacyjnych, drewna, tkanin meblowych oraz wydruk wielkoformatowy rzutów i renderingów na sztywnych planszach piankowych do prezentacji inwestorów podczas spotkań roboczych.',
+    tags: ['Prezentacja', 'Próbniki'],
+    icon: '📐'
   },
   {
-    title: 'Subskrypcja Autodesk Revit / CAD',
-    query: 'Opłacam roczną licencję Autodesk Revit oraz pakiet Adobe Creative Cloud od podmiotu z Irlandii. Na fakturze mam NIP UE z przedrostkiem PL. Jak to rozliczyć?',
-    tags: ['Software', 'BIM'],
+    title: 'Strona WWW, SEO i reklama w social media (Ads)',
+    query: 'Zaprojektowanie i wdrożenie nowoczesnej strony www pracowni z portfolio, jej stałe pozycjonowanie (SEO) oraz opłacanie miesięcznych budżetów reklamowych Meta Ads (Facebook/Instagram), Pinterest i Google Ads.',
+    tags: ['E-marketing', 'Reklama'],
+    icon: '📣'
+  },
+  {
+    title: 'Subskrypcja Revit, Twinmotion i AI do renderingu',
+    query: 'Opłacenie rocznej licencji Autodesk Revit (BIM), programu Twinmotion do wizualizacji 3D, oraz subskrypcji generatorów obrazów AI (np. Midjourney, Magnific AI) używanych do tworzenia moodboardów koncepcyjnych.',
+    tags: ['Software', 'BIM & AI'],
     icon: '💻'
   },
   {
-    title: 'Ekspres do kawy i kawa do pracowni',
-    query: 'Kupuję ekspres ciśnieniowy za 4500 zł oraz paczki kawy ziarnistej do biura/pracowni architektonicznej. Kawa służy pracownikom oraz klientom przychodzącym na prezentację rzutów.',
-    tags: ['Wyposażenie', 'BHP'],
-    icon: '🔌'
-  },
-  {
-    title: 'Gogle VR (Virtual Reality) do biura',
-    query: 'Kupuję gogle Oculus Quest (VR) do biura architektonicznego. Będą podłączone do komputera renderingowego, żeby klienci mogli odbyć wirtualny spacer po zaprojektowanym budynku.',
+    title: 'Gogle Meta Quest VR do wirtualnych spacerów',
+    query: 'Kupujemy gogle Meta Quest VR do biura architektonicznego. Będą podłączone do komputera renderingowego, aby klienci na spotkaniach roboczych mogli odbyć immersyjny, wirtualny spacer po zaprojektowanym obiekcie.',
     tags: ['Sprzęt IT', 'Prezentacja'],
     icon: '🥽'
+  },
+  {
+    title: 'Zakup drona do inwentaryzacji i nalotów foto/video',
+    query: 'Kupujemy profesjonalnego drona o wartości 7000 zł do wykonywania inwentaryzacji działek przed projektowaniem, fotogrametrii 3D terenu oraz kręcenia ujęć z powietrza postępów nadzorowanych budów we własnym zakresie.',
+    tags: ['Sprzęt i Foto', 'Nadzór'],
+    icon: '🛸'
+  },
+  {
+    title: 'Katering i lunch roboczy z inwestorem w kawiarni',
+    query: 'Opłacenie lunchu w kawiarni z kluczowym inwestorem podczas prezentacji i akceptacji projektu budowlanego lub zamawianie przekąsek/fingerfood na oficjalną prezentację projektu w biurze dla rady nadzorczej dewelopera.',
+    tags: ['Gastronomia', 'Negocjacje'],
+    icon: '☕'
   }
 ];
 
@@ -97,6 +110,61 @@ export default function TaxAdvisorAssistant({ state }: TaxAdvisorAssistantProps)
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
   const [explanationQuery, setExplanationQuery] = useState<string>('');
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  const generateEmailBody = () => {
+    if (!currentResult) return '';
+
+    const riskLabels = {
+      green: 'NISKIE RYZYKO - Bezpieczny Koszt (Zielone Światło)',
+      yellow: 'UMIARKOWANE RYZYKO - Koszt warunkowy (Żółte Światło)',
+      red: 'WYSOKIE RYZYKO - Koszt nierekomendowany / osobisty (Czerwone Światło)'
+    };
+  
+    const riskDescs = {
+      green: 'Znikomy poziom ryzyka. Koszt powszechnie akceptowany przez Krajową Informację Skarbową w branży architektonicznej (PKD 71.11.Z). Można bez obaw realizować transakcję.',
+      yellow: 'Średnie ryzyko. Wymaga rzetelnej dokumentacji i dopełnienia określonych warunków (np. trwałe oznaczenie logo, szczegółowy opis celowości na odwrocie faktury, wpis w kalendarzu potwierdzający spotkanie w kawiarni/restauracji z kontrahentem itp.) w celu obrony kosztu podczas ewentualnej kontroli.',
+      red: 'Wydatek zaklasyfikowany jako osobisty lub reprezentacja sprzeczna z prawem, brak merytorycznego związku z PKD architektonicznym. Wysokie prawdopodobieństwo zakwestionowania przez Urząd Skarbowy (ryzyko uznania za tzw. ukryty zysk lub nieodpłatne świadczenie).'
+    };
+
+    const riskText = riskLabels[currentResult.light] || currentResult.light;
+    const riskDesc = riskDescs[currentResult.light] || '';
+
+    return `Dzień dobry,
+
+Zwracam się z uprzejmą prośbą o wydanie wiążącej opinii księgowej w celu zweryfikowania dopuszczalności podatkowej planowanego zakupu przed realizacją transakcji. Zależy nam na upewnieniu się, że ujęcie tego kosztu w księgach naszej Spółki z o.o. będzie w pełni bezpieczne i zgodne z aktualną linią interpretacyjną organów podatkowych.
+
+Poniżej przedstawiam szczegółowe dane o planowanym wydatku oraz naszą wstępną analizę celowości podatkowej, sporządzoną pod kątem specyfiki i merytorycznego profilu działalności naszej Spółki (PKD 71.11.Z - Działalność w zakresie architektury):
+
+1. SPRAWDZONY WYDATEK:
+"${explanationQuery}"
+
+2. PROPONOWANA KATEGORIA KOSZTOWA:
+${currentResult.category || 'Ogólne koszty prowadzenia działalności / Do ustalenia'}
+
+3. ODLICZENIE PODATKÓW (VAT / CIT):
+• Odliczenie VAT: ${currentResult.vatDeductibility || 'Sprecyzowane poniżej.'}
+• Koszt uzyskania przychodu (CIT/KUP): ${currentResult.citDeductibility || 'Sprecyzowane poniżej.'}
+
+4. UZASADNIENIE CELOWOŚCI WYDATKU (ART. 15 UST. 1 USTAWY O CIT):
+${currentResult.justification}
+
+5. SPÓJNOŚĆ Z PROFILEM KRS (DZIAŁALNOŚĆ ARCHITEKTONICZNA PKD 71.11.Z):
+${currentResult.krsRelevance}
+
+6. OFICJALNE ZAPYTANIE DO KSIĘGOWOŚCI (PROŚBA O WIĄŻĄCE STANOWISKO):
+Mając na uwadze powyższe merytoryczne i prawne uzasadnienie celowości zakupu oraz jego ścisłą spójność z merytorycznym przedmiotem działalności firmy, dążąc do dochowania należytej staranności, uprzejmie proszę o odpowiedź na poniższe pytania przed realizacją transakcji:
+- Czy wyraża Pan/Pani zgodę na ujęcie tego kosztu jako kosztu uzyskania przychodów (KUP) oraz na odliczenie podatku naliczonego VAT zgodnie z powyższą rekomendacją systemową?
+- Jakie konkretne dokumenty uzupełniające bądź procedury dowodowe (np. merytoryczny opis na odwrocie faktury, wpisy w kalendarzu spotkań, dokumentacja fotograficzna, ewentualne ustalenia mailowe z kontrahentem) uważa Pan/Pani za zalecane w tym przypadku, aby skutecznie obronić gospodarczy cel tego wydatku przed Urzędem Skarbowym?
+
+7. SYSTEMOWA OCENA RYZYKA (ANALIZA WSTĘPNA):
+• Rekomendowany status: ${riskText}
+• Ocena analityczna ryzyka: ${riskDesc}
+
+Będę niezmiernie wdzięczny/wdzięczna za informację zwrotną oraz jednoznaczne ustosunkowanie się do powyższych punktów przed zakupem, co pozwoli nam na bezpieczne sfinalizowanie transakcji.
+
+Z wyrazami szacunku,
+[Zarząd Spółki / Twój Podpis]`;
+  };
 
   useEffect(() => {
     const handleOnline = () => setIsOffline(false);
@@ -633,7 +701,7 @@ export default function TaxAdvisorAssistant({ state }: TaxAdvisorAssistantProps)
                           <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Ocena CIT (KUP)</span>
                           <span className="text-emerald-700 font-bold text-xs mt-1 block flex items-center gap-1">
                             <Scale className="w-4 h-4 text-emerald-500" />
-                            {currentResult.citDeductibility ? currentResult.citDeductibility.split('.')[0] + '.' : 'Analizowane.'}
+                            {currentResult.citDeductibility ? currentResult.citDeductibility.split('.')[0] + '.' : 'Zgodnie z przepisami.'}
                           </span>
                         </div>
                       </div>
@@ -644,7 +712,7 @@ export default function TaxAdvisorAssistant({ state }: TaxAdvisorAssistantProps)
                         <p className="text-slate-700 mt-1 italic font-medium">"{explanationQuery}"</p>
                       </div>
 
-                      {/* Legal Justification block (Uzasadnienie dla urzędników) */}
+                      {/* 1. Legal Justification block (Uzasadnienie dla urzędników) */}
                       <div className="space-y-2 relative" id="section-justification">
                         <div className="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
                           <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 font-display">
@@ -665,12 +733,33 @@ export default function TaxAdvisorAssistant({ state }: TaxAdvisorAssistantProps)
                         </p>
                       </div>
 
-                      {/* How To Talk to Accountant Section (Instrukcja dla księgowej) */}
+                      {/* 2. KRS alignment status */}
+                      <div className="space-y-2 relative animate-fade-in" id="section-krs-status">
+                        <div className="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
+                          <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 font-display">
+                            <Building2 className="w-4 h-4 text-indigo-600" />
+                            Spójność z profilem KRS Twojej Spółki (PKD 71.11.Z)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleCopyText(currentResult.krsRelevance, 'krsRelevance')}
+                            className="text-[10px] font-bold text-indigo-600 hover:text-indigo-500 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Clipboard className="w-3.5 h-3.5" />
+                            {copiedSection === 'krsRelevance' ? 'skopiowano' : 'kopiuj'}
+                          </button>
+                        </div>
+                        <p className="text-xs text-slate-750 leading-relaxed font-sans bg-slate-50/20 p-3 rounded-xl border border-dashed border-slate-200 pl-4 border-l-2 border-l-indigo-600">
+                          {currentResult.krsRelevance}
+                        </p>
+                      </div>
+
+                      {/* 3. How To Talk to Accountant Section (Instrukcja dla księgowej / Uzasadnienie dla księgowej) */}
                       <div className="space-y-2 relative" id="section-accounting-advice">
                         <div className="flex justify-between items-center bg-slate-50 px-3 py-2 rounded-lg border border-slate-200">
                           <span className="text-[11px] font-bold text-slate-700 uppercase tracking-wider flex items-center gap-1.5 font-display">
                             <MessageSquare className="w-4 h-4 text-emerald-600" />
-                            Instrukcja księgowa & Jak rozmawiać z Biurem
+                            Uzasadnienie i Instrukcja dla Księgowej
                           </span>
                           <button
                             type="button"
@@ -686,17 +775,68 @@ export default function TaxAdvisorAssistant({ state }: TaxAdvisorAssistantProps)
                         </div>
                       </div>
 
-                      {/* KRS alignment status */}
-                      <div className="space-y-2 relative animate-fade-in" id="section-krs-status">
-                        <div className="flex items-center gap-1.5 text-[11px] font-bold text-slate-700 uppercase tracking-wider bg-slate-50 px-3 py-2 rounded-lg border border-slate-200 font-display">
-                          <Building2 className="w-4 h-4 text-indigo-600" />
-                          Spójność z profilem KRS Twojej Spółki (PKD 71.11.Z)
+                      {/* 4. Custom Email Inquiry Generator (Eksport do maila o wiążącą opinię przed zakupem) */}
+                      <div className="space-y-3 bg-indigo-50/45 p-5 rounded-2xl border border-indigo-150 mt-6" id="section-email-export">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5 font-display">
+                            <Mail className="w-4 h-4 text-indigo-700" />
+                            Gotowe Zapytanie E-mail do Twojej Księgowej (Wiążąca Opinia)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const body = generateEmailBody();
+                              handleCopyText(body, 'email-body');
+                            }}
+                            className="text-[10px] font-bold text-indigo-600 hover:text-indigo-550 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Clipboard className="w-3.5 h-3.5" />
+                            {copiedSection === 'email-body' ? 'skopiowano' : 'kopiuj całość'}
+                          </button>
                         </div>
-                        <p className="text-[11px] text-slate-600 leading-relaxed pl-3 font-sans">
-                          {currentResult.krsRelevance}
+                        
+                        <p className="text-[10px] text-slate-500 leading-relaxed">
+                          Profesjonalny e-mail przygotowany na podstawie wstępnej analizy celowości podatkowej. Służy do celów oficjalnego wysłania zapytania do biura rachunkowego w celu uzyskania wiążącej opinii i ostatecznego zatwierdzenia kwalifikacji podatkowej planowanego zakupu.
                         </p>
-                      </div>
 
+                        <div className="bg-white border text-xs text-slate-800 rounded-xl overflow-hidden shadow-2xs border-slate-200">
+                          {/* Simulated Email Headers */}
+                          <div className="bg-slate-50 p-3 border-b border-slate-150 space-y-1.5 text-[11px] font-sans text-slate-600">
+                            <div><strong className="text-slate-500">Do:</strong> <span className="italic text-slate-400 font-sans">[Adres e-mail Twojej księgowej / biura rachunkowego]</span></div>
+                            <div className="border-t border-slate-150 pt-1.5"><strong className="text-slate-500">Temat:</strong> <span className="text-slate-800 font-medium">Zapytanie o wiążącą opinię podatkową przed zakupem: "{explanationQuery}"</span></div>
+                          </div>
+                          
+                          {/* Resizable Textarea Preview */}
+                          <textarea
+                            readOnly
+                            value={generateEmailBody()}
+                            className="w-full h-80 p-4 bg-slate-50/20 text-xs font-sans text-slate-700 focus:outline-hidden leading-relaxed resize-y border-none"
+                            id="email-draft-textarea"
+                          />
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const body = generateEmailBody();
+                              handleCopyText(body, 'email-click');
+                            }}
+                            className="flex py-2.5 px-4 bg-white border border-slate-250 hover:bg-slate-50 rounded-xl font-bold text-xs text-slate-700 items-center justify-center gap-2 transition-all cursor-pointer shadow-3xs"
+                          >
+                            <Clipboard className="w-4 h-4 text-slate-500" />
+                            {copiedSection === 'email-click' ? 'SKOPIOWANO TREŚĆ!' : 'KOPIUJ CAŁĄ TREŚĆ MAILA'}
+                          </button>
+                          
+                          <a
+                            href={`mailto:?subject=${encodeURIComponent(`Zapytanie o wiążącą opinię podatkową przed zakupem: "${explanationQuery}"`)}&body=${encodeURIComponent(generateEmailBody())}`}
+                            className="flex py-2.5 px-4 bg-indigo-600 hover:bg-indigo-500 rounded-xl font-bold text-xs text-white items-center justify-center gap-2 transition-all cursor-pointer shadow-md shadow-indigo-100"
+                          >
+                            <Mail className="w-4 h-4" />
+                            UTWÓRZ WIADOMOŚĆ E-MAIL
+                          </a>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );

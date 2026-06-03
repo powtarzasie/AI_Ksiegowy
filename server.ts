@@ -11,6 +11,42 @@ dotenv.config();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
+const CONFIG_DIR = path.join(os.homedir(), '.symulator_podatkow');
+const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
+
+function getDbPath(): string {
+  try {
+    if (fs.existsSync(CONFIG_PATH)) {
+      const configRaw = fs.readFileSync(CONFIG_PATH, 'utf8');
+      const config = JSON.parse(configRaw);
+      if (config.dbPath) {
+        return config.dbPath;
+      }
+    }
+  } catch (err) {
+    console.error('Error reading config:', err);
+  }
+  return path.join(CONFIG_DIR, 'baza_danych.json');
+}
+
+function setDbPath(newPath: string) {
+  try {
+    if (!fs.existsSync(CONFIG_DIR)) {
+      fs.mkdirSync(CONFIG_DIR, { recursive: true });
+    }
+    let config: any = {};
+    if (fs.existsSync(CONFIG_PATH)) {
+      try {
+        config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+      } catch (e) {}
+    }
+    config.dbPath = newPath;
+    fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+  } catch (err) {
+    console.error('Error writing config:', err);
+  }
+}
+
 async function startServer() {
   const app = express();
   const PORT = 3000;
@@ -19,17 +55,86 @@ async function startServer() {
   app.use(express.json({ limit: '15mb' }));
   app.use(express.urlencoded({ extended: true, limit: '15mb' }));
 
+  // Local Database Persistence Config Endpoints
+  app.get('/api/db/config', async (req, res) => {
+    try {
+      const currentPath = getDbPath();
+      const defaultPath = path.join(os.homedir(), '.symulator_podatkow', 'baza_danych.json');
+      return res.json({
+        status: 'success',
+        dbPath: currentPath,
+        defaultPath: defaultPath,
+        exists: fs.existsSync(currentPath)
+      });
+    } catch (err: any) {
+      console.error('Error getting database config:', err);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/db/config', async (req, res) => {
+    try {
+      const { dbPath, moveExistingData } = req.body;
+      if (!dbPath) {
+        return res.status(400).json({ error: 'Brak wymaganej ścieżki dbPath' });
+      }
+
+      const targetPath = path.resolve(dbPath.trim());
+      const oldPath = getDbPath();
+
+      if (oldPath === targetPath) {
+        return res.json({ status: 'success', dbPath: targetPath, message: 'Wybrana ścieżka jest taka sama jak obecna.' });
+      }
+
+      const targetDir = path.dirname(targetPath);
+      if (!fs.existsSync(targetDir)) {
+        fs.mkdirSync(targetDir, { recursive: true });
+      }
+
+      let dataLoaded = null;
+
+      if (moveExistingData && fs.existsSync(oldPath)) {
+        // Move current data to the new path
+        const data = fs.readFileSync(oldPath, 'utf8');
+        fs.writeFileSync(targetPath, data, 'utf8');
+        try {
+          dataLoaded = JSON.parse(data);
+        } catch (e) {}
+        console.log(`Przeniesiono bazę danych z ${oldPath} do ${targetPath}`);
+      } else if (fs.existsSync(targetPath)) {
+        // Just load from target path
+        const data = fs.readFileSync(targetPath, 'utf8');
+        try {
+          dataLoaded = JSON.parse(data);
+        } catch (e) {}
+      }
+
+      setDbPath(targetPath);
+
+      return res.json({
+        status: 'success',
+        dbPath: targetPath,
+        data: dataLoaded,
+        message: moveExistingData 
+          ? `Pomyślnie przeniesiono bazę do nowej lokalizacji: ${targetPath}`
+          : `Zmieniono ścieżkę bazy danych na: ${targetPath}`
+      });
+    } catch (err: any) {
+      console.error('Error setting database config:', err);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
   // Local Database Persistence Endpoints for Desktop Mode
   app.get('/api/db/load', async (req, res) => {
     try {
-      const dbDir = path.join(os.homedir(), '.symulator_podatkow');
-      const dbPath = path.join(dbDir, 'baza_danych.json');
+      const dbPath = getDbPath();
       if (fs.existsSync(dbPath)) {
         const rawJson = fs.readFileSync(dbPath, 'utf8');
         const parsed = JSON.parse(rawJson);
         return res.json({ status: 'success', data: parsed });
       } else {
-        return res.json({ status: 'not_found' });
+        return res.json({ status: 'not_found', path: dbPath });
       }
     } catch (err: any) {
       console.error('Error loading database:', err);
@@ -39,11 +144,11 @@ async function startServer() {
 
   app.post('/api/db/save', async (req, res) => {
     try {
-      const dbDir = path.join(os.homedir(), '.symulator_podatkow');
+      const dbPath = getDbPath();
+      const dbDir = path.dirname(dbPath);
       if (!fs.existsSync(dbDir)) {
         fs.mkdirSync(dbDir, { recursive: true });
       }
-      const dbPath = path.join(dbDir, 'baza_danych.json');
       fs.writeFileSync(dbPath, JSON.stringify(req.body, null, 2), 'utf8');
       return res.json({ status: 'success', path: dbPath });
     } catch (err: any) {
@@ -540,15 +645,63 @@ function generateHeuristicAnalysis(sales: any[], purchases: any[], settings: any
 function generateHeuristicTaxAdviserOffset(query: string, krs: string) {
   const normalized = query.toLowerCase().trim();
   
-  if (normalized.includes('kaw') || normalized.includes('pij') || normalized.includes('jedz') || normalized.includes('restaurac') || normalized.includes('obiad') || normalized.includes('kawiarn') || normalized.includes('lunch') || normalized.includes('spotka') || normalized.includes('restor')) {
+  if (normalized.includes('staging') || normalized.includes('rekwizyt') || normalized.includes('dekorac') || normalized.includes('wazon') || normalized.includes('narzut') || normalized.includes('pościel') || normalized.includes('obraz') || normalized.includes('sesja') || normalized.includes('zdjęc') || normalized.includes('fotograf') || normalized.includes('video') || normalized.includes('film') || normalized.includes('aparat')) {
+    return {
+      light: 'green',
+      category: 'Koszty Home Stagingu, Usług Fotograficznych i Portfolio',
+      vatDeductibility: '100% odliczenia podatku VAT. Zdjęcia reklamowe i przygotowanie wnętrza bezpośrednio służą reklamie realizowanych usług.',
+      citDeductibility: '100% KUP. Wydatki na marketing wizualny ukończonych projektów stanowią bezpośredni koszt uzyskania przychodu.',
+      justification: `Zgodnie z art. 15 ust. 1 ustawy o CIT, wydatki na zakup rekwizytów do Home Stagingu (takich jak wazony, narzuty, obrazy, oświetlenie pomocnicze) oraz na profesjonalne usługi fotografii i wideo zrealizowanych wnętrz/obiektów stanowią koszty działań marketingowo-reklamowych biura projektowego. Są one kluczowe do udokumentowania efektów pracy architekta w portfolio firmy, pozyskiwania kolejnych inwestorów oraz budowania silnej tożsamości rynkowej i świadomości marki pracowni.`,
+      accountingAdvice: `1. Opisz fakturę z adnotacją: "Zakup rekwizytów aranżacyjnych / usług fotograficznych na potrzeby sesji zdjęciowej ukończonego projektu wnętrza [Nazwa Inwestycji / Adres] celem umieszczenia w portfolio reklamowym biura i promocji w internecie".\n2. Rekwizyty trzymaj w pracowni i używaj ich wielokrotnie do kolejnych realizacji. Przechowuj zdjęcia z sesji jako doskonały dowód wykonania prac.\n3. Całość rozliczaj bezpośrednio w koszty operacyjne bez amortyzacji, o ile wartość pojedynczego rekwizytu (np. designerski fotel) nie przekracza 10 000 zł netto.`,
+      krsRelevance: `Pełna spójność. PKD 71.11.Z oraz PKD 74.10.Z (Specjalistyczne projektowanie) bezpośrednio opierają swój sukces rynkowy na estetycznej i rzetelnej prezentacji wcześniejszych dokonań. Sesje portfolio i Home Staging są rynkowym standardem budowania przewagi konkurencyjnej.`
+    };
+  }
+
+  if (normalized.includes('próbnik') || normalized.includes('tynk') || normalized.includes('tkanin') || normalized.includes('plansz') || normalized.includes('makiety') || normalized.includes('model') || normalized.includes('prezentacj')) {
+    return {
+      light: 'green',
+      category: 'Materiały Prezentacyjne i Fizyczne Próbniki',
+      vatDeductibility: '100% odliczenia podatku VAT.',
+      citDeductibility: '100% KUP (zaliczenie bezpośrednie w bieżące koszty operacyjne).',
+      justification: `Zakup fizycznych próbek materiałowych (kamień, drewno, tynki elewacyjne, tkaniny, profile aluminiowe) oraz wydruków wielkoformatowych na sztywnych planszach piankowych służy rzetelnemu wykonaniu i uzgodnieniu projektu z inwestorem. Stanowi bezpośredni koszt operacyjny roboczych spotkań i koordynacji technicznej w myśl art. 15 ust. 1 ustawy o CIT, kluczowy dla eliminacji wad projektowych.`,
+      accountingAdvice: `1. Księgowa może bez problemu ująć to w koszty zużycia materiałów operacyjnych.\n2. Do faktury za wydruki wielkoformatowe lub plansze dołącz dopisek: "Wydruki plansz prezentacyjnych i makiet na spotkanie koordynacyjne z inwestorem w sprawie projektu [Nazwa Projektu]". Próbniki od podmiotów zewnętrznych mogą być fakturowane zbiorczo, dokumentując proces doboru materiałów wykończeniowych.`,
+      krsRelevance: `Ścisła zgodność z PKD 71.11.Z (Architektura) oraz PKD 71.12.Z (Inżynieria i doradztwo techniczne). Architekt w ramach obowiązków umownych dokonuje nadzorów autorskich i doradztwa w zakresie doboru certyfikowanych materiałów wykończeniowych.`
+    };
+  }
+
+  if (normalized.includes('strona') || normalized.includes('www') || normalized.includes('seo') || normalized.includes('pozycjonowan') || normalized.includes('reklam') || normalized.includes('ads') || normalized.includes('facebook') || normalized.includes('instagram') || normalized.includes('pinterest') || normalized.includes('google ads')) {
+    return {
+      light: 'green',
+      category: 'Usługi Reklamowe i Marketing Internetowy',
+      vatDeductibility: '100% odliczenia VAT. W przypadku faktur od Meta/Google z Irlandii, należy rozliczyć Import Usług VAT ze stawką 23% naliczoną i należną simultanicznie (wymagany NIP z przedrostkiem PL w systemie VIES).',
+      citDeductibility: '100% KUP. Koszt stały reklamy i marketingu cyfrowego.',
+      justification: `Strona internetowa z galerią realizacji (portfolio), jej pozycjonowanie w wyszukiwarkach (SEO) oraz prowadzenie celowanych kampanii reklamowych w kanałach społecznościowych (Meta Ads, Pinterest, Google Ads) służą bezpośrednio pozyskiwaniu nowych zleceń projektowych na rzecz spółki (Art. 15 ust. 1 CIT). Wydatki te służą zachowaniu i zabezpieczeniu stałego źródła przychodów pracowni architektonicznej.`,
+      accountingAdvice: `1. Pamiętaj, aby podać swój NIP z przedrostkiem PL przy rejestracji kont reklamowych Google/Facebook/Pinterest. Faktury będą wystawiane bez zagranicznego VAT-u (odwrotne obciążenie), co księgowa rozliczy jako Import Usług.\n2. Przy opłatach za SEO zadbaj o dołączanie przez agencję comiesięcznego raportu z wykonanych prac pozycjonerskich i analityki ruchu. To wyklucza zarzut urzędu skarbowego o fikcyjność usług.`,
+      krsRelevance: `Pełna zgodność. Pozyskiwanie kontraktów projektowych premium i komercyjnych (deweloperskich) w PKD 71.11.Z opiera się współcześnie głównie na marketingu cyfrowym.`
+    };
+  }
+
+  if (normalized.includes('dron') || normalized.includes('fotogrametri')) {
+    return {
+      light: 'green',
+      category: 'Specjalistyczny Sprzęt Techniczno-Inwentaryzacyjny',
+      vatDeductibility: '100% odliczenia podatku VAT.',
+      citDeductibility: '100% KUP (jednorazowo, jeśli wartość drona nie przekracza 10 000 zł netto, lub ratalnie przez odpisy amortyzacyjne w grupie 6 KŚT).',
+      justification: `Dron stanowi nowoczesne narzędzie inwentaryzacyjne, służące do mapowania terenu (fotogrametria 3D), analizy ukształtowania i nasłonecznienia parceli przed rozpoczęciem projektowania koncepcyjnego, a także do sporządzania precyzyjnej dokumentacji technicznej i foto/wideo dla celów obowiązkowego nadzoru autorskiego. Wydatek ten wprost realizuje przesłankę celowości z art. 15 ust. 1 ustawy o CIT.`,
+      accountingAdvice: `1. Kup drona na fakturę wystawioną na dane spółki.\n2. Zarejestruj drona w Urzędzie Lotnictwa Cywilnego (ULC) na dane firmy i opłać firmowe ubezpieczenie OC operatora drona (które w 100% stanowi KUP).\n3. Przechowuj ortofotomapy, chmury punktów oraz zdjęcia działek jako załącznik do projektów budowlanych w razie kontroli skarbówki dokumentującej realne wykorzystanie sprzętu technicznego w biurze.`,
+      krsRelevance: `Wysoka spójność. Zgodne z PKD 71.11.Z (Architektura) oraz PKD 71.12.Z (Inżynieria). Pozwala na szybkie pozyskanie danych geodezyjnych i wizualnych w trudnym terenie bez ponoszenia kosztów zewnętrznych podwykonawców.`
+    };
+  }
+
+  if (normalized.includes('kaw') || normalized.includes('pij') || normalized.includes('jedz') || normalized.includes('restaurac') || normalized.includes('obiad') || normalized.includes('kawiarn') || normalized.includes('lunch') || normalized.includes('spotka') || normalized.includes('restor') || normalized.includes('kater') || normalized.includes('poczęst')) {
     return {
       light: 'yellow',
       category: 'Spotkania z Klientami i Gastronomia',
-      vatDeductibility: 'Brak odliczenia VAT (Art. 88 ust. 1 pkt 4 ustawy o VAT zabrania odliczania podatku od usług gastronomicznych, chyba że jest to katering zakupiony oddzielnie).',
+      vatDeductibility: 'Brak odliczenia VAT z faktur za tradycyjne usługi gastronomiczne (Art. 88 ust. 1 pkt 4 ustawy o VAT zabrania odliczania podatku od usług restauracyjnych). Wyjątkiem jest katering zamawiany do biura (np. przekąski na rzutnikową prezentację), od którego odliczysz 100% VAT.',
       citDeductibility: '100% KUP. Możesz zaliczyć całą kwotę brutto z faktury restauracyjnej do kosztów uzyskania przychodów CIT, pod warunkiem wskazania, że celem spotkania było omówienie projektu architektonicznego, uzgodnienia umowne lub inwentaryzacje.',
       justification: `Zakup usługi gastronomicznej w restauracji lub kawiarni w celu omówienia rzutów kondygnacji i założeń projektowych z inwestorem bezpośrednio wiąże się z PKD 71.11.Z oraz regulacją art. 15 ust. 1 ustawy o CIT. Wydatki te nie mają charakteru reprezentacji wystawnej, skrajnie luksusowej (która jest wyłączona na mocy art. 16 ust. 1 pkt 28 CIT), lecz są standardowymi, racjonalnymi kosztami ponoszonymi w toku negocjacji biznesowych mających na celu osiągnięcie oraz zabezpieczenie przychodów spółki.`,
       accountingAdvice: `1. Poproś obsługę restauracji o fakturę VAT wystawioną bezpośrednio na Twoją spółkę z o.o.\n2. Wyjaśnij księgowej, że spotkanie miało charakter roboczo-negocjacyjny (ustalenia architektoniczne, dobór materiałów budowlanych), a nie wystawny bankiet.\n3. Napisz odręcznie na odwrocie faktury lub dołącz notatkę: "Spotkanie robocze z inwestorem [Imię / Nazwisko / Nazwa Firmy] w sprawie projektu budynku jednorodzinnego przy ul. X, celem zatwierdzenia fazy koncepcyjnej". To chroni koszt przed zakwalifikowaniem jako "reprezentacja wyłączona z KUP".`,
-      krsRelevance: `Wysoka spójność. Świadczenie usług projektowych w architekturze wymaga bezpośrednich konsultacji z inwestorami i podwykonawcami w celach koordynacji branżowej (konstrukcja, instalacje), co często odbywa się poza stałym biurem.`
+      krsRelevance: `Wysoka spójność. Świadczenie usług projektowych w architekturze wymaga bezpośrednich konsultacji z inwestorami i podwykonawcami v celach koordynacji branżowej (konstrukcja, instalacje), co często odbywa się poza stałym biurem.`
     };
   }
 
@@ -569,15 +722,15 @@ function generateHeuristicTaxAdviserOffset(query: string, krs: string) {
     };
   }
 
-  if (normalized.includes('program') || normalized.includes('licencj') || normalized.includes('soft') || normalized.includes('autocad') || normalized.includes('revit') || normalized.includes('archicad') || normalized.includes('sketchup') || normalized.includes('adobe') || normalized.includes('windows') || normalized.includes('cad') || normalized.includes('blender') || normalized.includes('office') || normalized.includes('smet')) {
+  if (normalized.includes('program') || normalized.includes('licencj') || normalized.includes('soft') || normalized.includes('autocad') || normalized.includes('revit') || normalized.includes('archicad') || normalized.includes('sketchup') || normalized.includes('adobe') || normalized.includes('windows') || normalized.includes('cad') || normalized.includes('blender') || normalized.includes('office') || normalized.includes('smet') || normalized.includes('midjourney') || normalized.includes('magnific') || normalized.includes('twinmotion') || normalized.includes('enscape') || normalized.includes('v-ray') || normalized.includes('lumion')) {
     return {
       light: 'green',
-      category: 'Narzędzia Specjalistyczne (Licencje i SaaS)',
-      vatDeductibility: '100% odliczenia VAT (w przypadku zakupów z UE, np. Adobe/Autodesk, rozliczamy Import Usług z 23% VAT naliczonym i należnym jednocześnie).',
+      category: 'Narzędzia Specjalistyczne (Licencje, AI i SaaS)',
+      vatDeductibility: '100% odliczenia VAT (w przypadku zakupów z UE, np. Adobe/Autodesk/Midjourney, rozliczamy Import Usług z 23% VAT naliczonym i należnym jednocześnie).',
       citDeductibility: '100% KUP (zaliczenie bezpośrednie lub przez amortyzację wartości niematerialnych i prawnych, jeżeli licencja roczna przekracza 10 000 zł i nadaje się do amortyzacji).',
-      justification: `Oprogramowanie do projektowania wspomaganego komputerowo (BIM/CAD), programy graficzne do wizualizacji oraz pakiety biurowe do specyfikacji budowlanych to podstawowe, nieodzowne narzędzia pracy w PKD 71.11.Z. Their koszt kwalifikuje się bezdyskusyjnie na podstawie art. 15 ust. 1 ustawy o CIT jako służący celowi osiągnięcia i zachowania przychodów i bezpośrednio powiązany z działalnością projektowania budynków.`,
-      accountingAdvice: `1. Przekaż fakturę księgowej. Jeśli licencję zakupiono od podmiotu zagranicznego (np. faktura w EUR/USD z Irlandii od Adobe/Trimble/Autodesk), poinformuj ją, że to import usług.\n2. Upewnij się, że na fakturze widnieje Twój unijny numer NIP (NIP-UE z przedrostkiem PL). To zapobiegnie doliczeniu zagranicznego podatku VAT.`,
-      krsRelevance: `Pełna zgodność bezpośrednia. Brak oprogramowania CAD/BIM uniemożliwia realizację głównej działalności sklasyfikowanej pod kodem PKD 71.11.Z.`
+      justification: `Oprogramowanie do projektowania wspomaganego komputerowo (BIM/CAD), programy graficzne do renderingu i wizualizacji (Twinmotion, Lumion, V-Ray) oraz subskrypcje sztucznej inteligencji (AI np. Midjourney do tworzenia moodboardów) to podstawowe, nieodzowne narzędzia pracy w PKD 71.11.Z. Ich koszt kwalifikuje się bezdyskusyjnie na podstawie art. 15 ust. 1 ustawy o CIT jako służący celowi osiągnięcia i zachowania przychodów i bezpośrednio powiązany z nowoczesną działalnością projektową.`,
+      accountingAdvice: `1. Przekaż fakturę księgowej. Jeśli licencję zakupiono od podmiotu zagranicznego (np. faktura w EUR/USD z Irlandii od Adobe/Trimble/Autodesk czy USA od Midjourney), poinformuj ją, że to import usług.\n2. Upewnij się, że na fakturze widnieje Twój unijny numer NIP (NIP-UE z przedrostkiem PL). To zapobiegnie doliczeniu zagranicznego podatku VAT.`,
+      krsRelevance: `Pełna zgodność bezpośrednia. Brak profesjonalnego oprogramowania CAD/BIM/AI renderingowego uniemożliwia realizację współczesnej działalności sklasyfikowanej pod kodem PKD 71.11.Z.`
     };
   }
 
@@ -623,7 +776,7 @@ function generateHeuristicTaxAdviserOffset(query: string, krs: string) {
     category: 'Koszty Operacyjne Wspierające Biznes',
     vatDeductibility: 'Zazwyczaj 100% odliczenia (o ile koszt nie dotyczy zakwaterowania ani usług gastronomicznych, na które nałożono ustawowe wyłączenia).',
     citDeductibility: 'Zazwyczaj 100% KUP, o ile wykazana zostanie celowość i wpływ na generowanie przychodu w spółce z o.o.',
-    justification: `Wydatek ten, choć ma charakter ogólny, przyczynia się do zachowania sprawności operacyjnej biura projektowego i personelu technicznego, co zabezpiecza poprawną realizację umów i terminowość projektów w myśl art. 15 ust. 1 ustawy o CIT.`,
+    justification: `Wydatek ten, choć ma charakter ogólny, przyczynia się do zachowania sprawności operacyjnej biura projektowego i personelu technicznego, co zabezpiecza poprawną realizację umów i terminowość projektów v myśl art. 15 ust. 1 ustawy o CIT.`,
     accountingAdvice: `1. Zachowaj fakturę VAT prawidłowo wystawioną na pełną nazwę i NIP Twojej spółki z o.o.\n2. Upewnij się, że potrafisz krótko opisać księgowej logiczny związek tego zakupu ze sprawami firmy (np. 'dostęp do szybkiego internetu pozwala na transferowanie ciężkich plików projektowych CAD o rozmiarach setek megabajtów na serwery klienta').`,
     krsRelevance: `Spójne z ogólnymi kosztami administracyjno-operacyjnymi niezbędnymi dla utrzymania spółki z o.o. w gotowości do fakturowania usług projektowych z zakresu architektury.`
   };

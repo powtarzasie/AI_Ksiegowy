@@ -1,9 +1,42 @@
-const { app, BrowserWindow, Menu } = require('electron');
+const { app, BrowserWindow, Menu, ipcMain, dialog } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
 
 let mainWindow;
 let serverProcess;
+
+// Register IPC handlers to let the user select a custom DB file path on disk
+ipcMain.handle('select-db-file', async () => {
+  if (!mainWindow) return null;
+  const result = await dialog.showSaveDialog(mainWindow, {
+    title: 'Wybierz lokalizację nowej bazy danych',
+    defaultPath: path.join(app.getPath('home'), '.symulator_podatkow', 'baza_danych.json'),
+    filters: [
+      { name: 'Pliki JSON (*.json)', extensions: ['json'] }
+    ],
+    properties: ['showOverwriteConfirmation', 'createDirectory']
+  });
+  if (!result.canceled && result.filePath) {
+    return result.filePath;
+  }
+  return null;
+});
+
+ipcMain.handle('browse-db-file', async () => {
+  if (!mainWindow) return null;
+  const result = await dialog.showOpenDialog(mainWindow, {
+    title: 'Wybierz istniejący plik bazy danych',
+    defaultPath: app.getPath('home'),
+    filters: [
+      { name: 'Pliki JSON (*.json)', extensions: ['json'] }
+    ],
+    properties: ['openFile']
+  });
+  if (!result.canceled && result.filePaths.length > 0) {
+    return result.filePaths[0];
+  }
+  return null;
+});
 
 // Automatically launch Express server inside Electron
 function startExpressServer() {

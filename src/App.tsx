@@ -14,6 +14,7 @@ import TaxDashboard from './components/TaxDashboard';
 import TransactionsManager from './components/TransactionsManager';
 import McKinseyDashboard from './components/McKinseyDashboard';
 import TaxAdvisorAssistant from './components/TaxAdvisorAssistant';
+import FinancialDashboard from './components/FinancialDashboard';
 import {
   Database,
   Layers,
@@ -24,7 +25,8 @@ import {
   CheckCircle,
   FileText,
   HelpCircle,
-  Sparkles
+  Sparkles,
+  AlertCircle
 } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY = 'symulator_podatkow_state_v2';
@@ -415,7 +417,7 @@ export default function App() {
 
   const [disclaimerChecked, setDisclaimerChecked] = useState<boolean>(false);
 
-  const [activeTab, setActiveTab ] = useState<'kpis' | 'yearly_executive' | 'registers' | 'settings_backup' | 'tax_advisor'>('kpis');
+  const [activeTab, setActiveTab ] = useState<'kpis' | 'financial_dashboard' | 'yearly_executive' | 'registers' | 'settings_backup' | 'tax_advisor'>('kpis');
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [isSavedIndicator, setIsSavedIndicator] = useState(false);
   const [isDiskSaved, setIsDiskSaved] = useState(false);
@@ -743,6 +745,7 @@ export default function App() {
             <div className="flex flex-wrap gap-1.5 flex-1">
               {[
                 { id: 'kpis', label: 'Tablica Wyników i Symulacje', icon: Layers },
+                { id: 'financial_dashboard', label: 'Dashboard Finansowy (TTM)', icon: Layers },
                 { id: 'registers', label: 'Księgi i Rejestry Transakcji', icon: FileText },
                 { id: 'settings_backup', label: 'Magazyn i Kopia Zapasowa', icon: Database },
               ].map((tab) => {
@@ -817,6 +820,10 @@ export default function App() {
             <TaxDashboard state={state} />
           )}
 
+          {activeTab === 'financial_dashboard' && (
+            <FinancialDashboard state={state} />
+          )}
+
           {activeTab === 'yearly_executive' && (
             <McKinseyDashboard state={state} />
           )}
@@ -843,6 +850,41 @@ export default function App() {
               onManualSave={handleManualSave}
               onLlmConfigChange={handleLlmConfigChange}
             />
+          )}
+        </div>
+
+        {/* Compliance and Preferential Rates Info (Yellow elements moved from top to bottom) */}
+        <div className="space-y-4 mt-8">
+          {/* Dynamic Security & Audit Alert Banner - June 2026 Polish Regulation Status */}
+          <div className="bg-indigo-50 border border-indigo-200/80 rounded-3xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm" id="compliance-audit-2026-banner-bottom">
+            <div className="flex items-start gap-3">
+              <div className="p-2.5 bg-indigo-100 rounded-2xl text-indigo-700">
+                <FileText className="w-5.5 h-5.5 font-bold" />
+              </div>
+              <div>
+                <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                  Audyt Zgodności 2026 (Sp. z o.o.) — Status: Zweryfikowany
+                  <span className="px-2 py-0.5 text-[9px] uppercase font-black tracking-widest bg-emerald-500 text-white rounded-full">
+                    Zaliczka CIT YTD
+                  </span>
+                </h3>
+                <p className="text-xs text-slate-600 mt-1.5 leading-relaxed font-sans">
+                  Zgodnie z audytem prawno-podatkowym na dzień <strong>2 czerwca 2026 r.</strong>, Krajowy System e-Faktur (KSeF) został ustawowo przesunięty na <strong>1 stycznia 2027 r.</strong> W okresie bieżącym (czerwiec 2026) fakturowanie przez KSeF jest <strong>dobrowolne</strong>, a system w pełni popiera i mapuje nagłówki KSeF przy imporcie Excel/CSV. Wyliczenia CIT dla Sp. z o.o. są zgodne z zasadą <strong>narastającą (YTD)</strong>, a podstawa i zaliczki są zaokrąglane pod ustawę (Art. 63 § 1 Ordynacji podatkowej).
+                </p>
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-1.5 self-end md:self-auto text-xs font-bold text-indigo-900 bg-indigo-100/75 px-3 py-1.5 rounded-xl border border-indigo-150">
+              Ustawy: Czerwiec 2026 r.
+            </div>
+          </div>
+
+          {state.settings.stawkaCIT === 9 && (
+            <div className="text-xs flex items-start gap-3 text-amber-900 bg-amber-50 border border-amber-200 p-4 rounded-2xl" id="cit-notice-bottom">
+              <AlertCircle className="w-5 h-5 text-amber-600 shrink-0 mt-0.5" />
+              <div className="leading-relaxed">
+                <span className="font-bold">Stawka preferencyjna 9% CIT:</span> Dotyczy małych podatników realizujących obrót roczny brutto poniżej 2 mln EUR w poprzednim roku. Pamiętaj o bieżącym monitorowaniu limitu rentowności i przychodów operacyjnych w roku {state.settings.rokPodatkowy}.
+              </div>
+            </div>
           )}
         </div>
 
