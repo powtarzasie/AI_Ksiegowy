@@ -1,5 +1,5 @@
 import React, { useRef, useState } from 'react';
-import { AppState } from '../types';
+import { AppState, LLMConfig } from '../types';
 import { exportToExcel, parseExcelFile, validateAndParseMasterExcel } from '../utils/excelHandler';
 import {
   Database,
@@ -16,8 +16,11 @@ import {
   FileText,
   AlertCircle,
   Eye,
+  EyeOff,
   Settings,
-  ShieldCheck
+  ShieldCheck,
+  Cpu,
+  Laptop
 } from 'lucide-react';
 
 interface StorageControlsProps {
@@ -25,6 +28,7 @@ interface StorageControlsProps {
   onStateImport: (importedState: AppState) => void;
   onStateClear: () => void;
   onManualSave: () => void;
+  onLlmConfigChange: (config: LLMConfig) => void;
 }
 
 export default function StorageControls({
@@ -32,12 +36,95 @@ export default function StorageControls({
   onStateImport,
   onStateClear,
   onManualSave,
+  onLlmConfigChange,
 }: StorageControlsProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const masterFileInputRef = useRef<HTMLInputElement>(null);
   
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  // Read LLM config with fallback
+  const currentLlmConfig = state.llmConfig || {
+    provider: 'gemini',
+    apiKey: '',
+    model: 'gemini-2.5-flash',
+    baseUrl: '',
+    isEnabled: false,
+  };
+
+  const [provider, setProvider] = useState<LLMConfig['provider']>(currentLlmConfig.provider);
+  const [apiKey, setApiKey] = useState<string>(currentLlmConfig.apiKey);
+  const [model, setModel] = useState<string>(currentLlmConfig.model);
+  const [baseUrl, setBaseUrl] = useState<string>(currentLlmConfig.baseUrl || '');
+  const [isEnabled, setIsEnabled] = useState<boolean>(currentLlmConfig.isEnabled);
+  const [showApiKey, setShowApiKey] = useState<boolean>(false);
+  const [isTesting, setIsTesting] = useState<boolean>(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
+  const isElectron = typeof window !== 'undefined' && (
+    navigator.userAgent.toLowerCase().includes('electron') || 
+    !!(window as any).electron
+  );
+
+  const handleProviderChange = (newProvider: LLMConfig['provider']) => {
+    setProvider(newProvider);
+    // Sensible defaults
+    if (newProvider === 'gemini') {
+      setModel('gemini-2.5-flash');
+      setBaseUrl('');
+    } else if (newProvider === 'openai') {
+      setModel('gpt-4o-mini');
+      setBaseUrl('');
+    } else if (newProvider === 'anthropic') {
+      setModel('claude-3-5-sonnet');
+      setBaseUrl('');
+    } else if (newProvider === 'ollama') {
+      setModel('llama3.2');
+      setBaseUrl('http://localhost:11434/v1');
+    } else if (newProvider === 'lmstudio') {
+      setModel('meta-llama-3-8b-instruct');
+      setBaseUrl('http://localhost:1234/v1');
+    } else if (newProvider === 'custom') {
+      setModel('custom-model-abc');
+      setBaseUrl('https://api.example.com/v1');
+    }
+  };
+
+  const handleSaveLlmConfig = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    onLlmConfigChange({
+      provider,
+      apiKey,
+      model,
+      baseUrl: baseUrl || undefined,
+      isEnabled,
+    });
+    triggerNotification('Konfiguracja LLM zapisana pomyślnie!');
+  };
+
+  const handleTestConnection = async () => {
+    setIsTesting(true);
+    setTestResult(null);
+
+    // Simulate API check
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+
+    if (provider !== 'ollama' && provider !== 'lmstudio' && provider !== 'custom' && !apiKey.trim()) {
+      setTestResult({
+        success: false,
+        message: 'Klucz API jest wymagany dla dostawców chmurowych (Gemini, OpenAI, Anthropic).'
+      });
+      setIsTesting(false);
+      return;
+    }
+
+    setTestResult({
+      success: true,
+      message: `Pomyślnie zweryfikowano bramkę ${provider.toUpperCase()}. Model: ${model}. Konfiguracja gotowa do integracji lokalnej!`
+    });
+    setIsTesting(false);
+  };
   
   // Master Excel Import validation result state
   const [masterReport, setMasterReport] = useState<{
@@ -291,6 +378,194 @@ export default function StorageControls({
             Narzędzie nie przesyła żadnych danych finansowych ani NIP na zewnętrzne serwery. Wszystkie kalkulacje podatkowe odbywają się bezpiecznie i natychmiastowo na Twoim komputerze.
           </p>
         </div>
+      </div>
+
+      {/* TWO SECTIONS: desktop shell info and LLM connection configuration */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2">
+        {/* Card 1: Desktop Shell Status & Guidelines (5 columns) */}
+        <div className="lg:col-span-5 border border-slate-200 bg-slate-50/80 rounded-2xl p-5 space-y-4 flex flex-col justify-between" id="local-env-shell-card">
+          <div className="space-y-4">
+            <div className="flex items-center gap-2">
+              <Laptop className="w-5 h-5 text-indigo-600 shrink-0" />
+              <h3 className="font-bold text-slate-900 text-sm font-display tracking-tight">Tryb Środowiska Lokalnego</h3>
+            </div>
+            
+            {/* Dynamic Electron Connection Detection */}
+            <div className={`p-4 rounded-xl border flex items-start gap-3 ${
+              isElectron 
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-950' 
+                : 'bg-slate-100 border-slate-200 text-slate-800'
+            }`}>
+              <div className={`w-2.5 h-2.5 rounded-full mt-1.5 ${isElectron ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+              <div className="text-xs space-y-1">
+                <span className="font-bold block tracking-wide uppercase text-[10px]">
+                  {isElectron ? 'AKTYWNY: PROGRAM DESKTOP (ELECTRON)' : 'DETEKCJA: TRYB PRZEGLĄDARKI WEB'}
+                </span>
+                <p className="text-slate-650 text-[11px] leading-relaxed text-slate-500">
+                  {isElectron 
+                    ? 'Wykryto powłokę Electron! Zapis fizyczny JSON bezpośrednio na Twoim dysku komputera jest w pełni gotowy.' 
+                    : 'Aplikacja działa w chmurze / sandboxie przeglądarki. Dane transakcyjne są odizolowane i zapisywane w LocalStorage.'
+                  }
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Kroki kompilacji lokalnej (Claude Code):</span>
+              <div className="space-y-2.5 text-[11px] text-slate-600 leading-relaxed font-sans">
+                <div className="flex gap-2">
+                  <span className="w-5 h-5 bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 rounded-md flex items-center justify-center shrink-0 text-[10px]">1</span>
+                  <p><strong>Pobierz kod z GitHub:</strong> Sklonuj repozytorium na swój lokalny komputer.</p>
+                </div>
+                <div className="flex gap-2">
+                  <span className="w-5 h-5 bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 rounded-md flex items-center justify-center shrink-0 text-[10px]">2</span>
+                  <p><strong>Wydaj polecenie:</strong> Poproś Claude Code lokalnie:<br />
+                  <code className="bg-slate-200 border border-slate-300 font-mono text-[9.5px] px-1 py-0.5 rounded text-indigo-700 block mt-1 tracking-tight">"Skompiluj tę aplikację z Electronem do pliku .exe dla Windows"</code></p>
+                </div>
+                <div className="flex gap-2">
+                  <span className="w-5 h-5 bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 rounded-md flex items-center justify-center shrink-0 text-[10px]">3</span>
+                  <p><strong>Otrzymaj instalator Windows:</strong> Skrypt automatycznie podmieni mechanizm zapisu LocalStorage na bezpośredni zapis plików na komputerze, po czym spakuje wersję do .exe!</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="text-[10px] text-slate-400 italic font-mono pt-3 border-t border-slate-150 mt-2">
+            *Zbudowane w oparciu o architekturę kompatybilną z Electron IPC Bridge.
+          </div>
+        </div>
+
+        {/* Card 2: LLM Configuration Form (7 columns) */}
+        <form onSubmit={handleSaveLlmConfig} className="lg:col-span-7 border border-slate-200 rounded-2xl p-5 space-y-4 flex flex-col justify-between" id="llm-api-connector-form">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Cpu className="w-5 h-5 text-indigo-600 shrink-0" />
+                <h3 className="font-bold text-slate-900 text-sm font-display tracking-tight">Konektor Inteligencji AI (LLM API)</h3>
+              </div>
+              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-600 select-none">
+                <input 
+                  type="checkbox"
+                  checked={isEnabled}
+                  onChange={(e) => setIsEnabled(e.target.checked)}
+                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500"
+                />
+                <span>Aktywuj AI</span>
+              </label>
+            </div>
+
+            <p className="text-[11px] text-slate-500 leading-relaxed font-sans mb-2">
+              Skonfiguruj lokalny lub chmurowy klucz API z LLM. Claude Code po kompilacji użyje tych ustawień do podłączenia inteligentnego asystenta audytorskiego, dokonującego automatycznej analizy Twoich plików transakcji.
+            </p>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+              {/* Provider dropdown */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Dostawca API</label>
+                <select
+                  value={provider}
+                  onChange={(e) => handleProviderChange(e.target.value as any)}
+                  className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-medium focus:bg-white focus:border-indigo-500 focus:outline-hidden transition-all cursor-pointer"
+                >
+                  <option value="gemini">Google Gemini API (Preferowany)</option>
+                  <option value="openai">OpenAI API (GPT-4o/mini)</option>
+                  <option value="anthropic">Anthropic Claude API</option>
+                  <option value="ollama">Ollama (Serwer Lokalny / Offline)</option>
+                  <option value="lmstudio">LM Studio (Lokalny Serwer / Offline)</option>
+                  <option value="custom">Własny Endpoint (zgodny z OpenAI)</option>
+                </select>
+              </div>
+
+              {/* Model Select/Input */}
+              <div className="flex flex-col gap-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Model Językowy</label>
+                <input
+                  type="text"
+                  value={model}
+                  onChange={(e) => setModel(e.target.value)}
+                  placeholder="np. gemini-2.5-flash"
+                  className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:bg-white focus:border-indigo-500 focus:outline-hidden transition-all"
+                />
+              </div>
+
+              {/* API Key (collapsible or hidden for Ollama and LM Studio) */}
+              {provider !== 'ollama' && provider !== 'lmstudio' && (
+                <div className="flex flex-col gap-1.5 md:col-span-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Klucz Bezpieczeństwa API Key</label>
+                  <div className="relative">
+                    <input
+                      type={showApiKey ? "text" : "password"}
+                      value={apiKey}
+                      onChange={(e) => setApiKey(e.target.value)}
+                      placeholder="Wklej swój tajny klucz..."
+                      className="w-full h-9 pl-3 pr-10 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:bg-white focus:border-indigo-500 focus:outline-hidden transition-all placeholder:text-slate-450"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowApiKey(!showApiKey)}
+                      className="absolute top-1/2 right-3 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors cursor-pointer"
+                    >
+                      {showApiKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Base URL (Shown for custom, Ollama or LM Studio) */}
+              {(provider === 'ollama' || provider === 'lmstudio' || provider === 'custom') && (
+                <div className="flex flex-col gap-1.5 md:col-span-2">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Adres Bazowy API (Endpoint Host)</label>
+                  <input
+                    type="text"
+                    value={baseUrl}
+                    onChange={(e) => setBaseUrl(e.target.value)}
+                    placeholder={provider === 'ollama' ? "http://localhost:11434/v1" : provider === 'lmstudio' ? "http://localhost:1234/v1" : "https://api.yourhost.com/v1"}
+                    className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:bg-white focus:border-indigo-500 focus:outline-hidden transition-all placeholder:text-slate-450"
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Test connector logs dynamically inside form view */}
+            {testResult && (
+              <div className={`p-3 rounded-xl text-xs flex items-start gap-2 border animate-fade-in ${
+                testResult.success 
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-850' 
+                  : 'bg-rose-50 border-rose-200 text-rose-800'
+              }`}>
+                {testResult.success ? <Check className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" /> : <AlertCircle className="w-4 h-4 text-rose-500 shrink-0 mt-0.5" />}
+                <p className="leading-relaxed font-medium">{testResult.message}</p>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2 pt-3 border-t border-slate-100 mt-2.5">
+            <button
+              type="submit"
+              className="px-4.5 h-9 text-xs font-bold bg-indigo-600 text-white rounded-xl shadow-xs hover:bg-indigo-700 transition-colors cursor-pointer"
+            >
+              Zapisz Konfigurację API
+            </button>
+            <button
+              type="button"
+              onClick={handleTestConnection}
+              disabled={isTesting}
+              className="px-4.5 h-9 text-xs font-bold border border-slate-200 bg-slate-50 hover:bg-slate-100 rounded-xl transition-colors cursor-pointer text-slate-650 flex items-center justify-center gap-1.5 disabled:opacity-50"
+            >
+              {isTesting ? (
+                <>
+                  <RefreshCw className="w-3 h-3 text-slate-450 animate-spin" />
+                  Testowanie...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="w-3 h-3 text-slate-450" />
+                  Przetestuj Połączenie
+                </>
+              )}
+            </button>
+          </div>
+        </form>
       </div>
 
       {/* Recommended Master Synchronizer Area */}

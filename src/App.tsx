@@ -341,7 +341,14 @@ const SAMPLE_STATE: AppState = {
       nadwyzkaZPoprzedniego: 0,
       korekty: 0
     }
-  ]
+  ],
+  llmConfig: {
+    provider: 'gemini',
+    apiKey: '',
+    model: 'gemini-2.5-flash',
+    baseUrl: '',
+    isEnabled: false
+  }
 };
 
 export default function App() {
@@ -413,8 +420,22 @@ export default function App() {
       sales: [],
       purchases: [],
       citAdvances: [],
-      vatRegistry: []
+      vatRegistry: [],
+      llmConfig: {
+        provider: 'gemini',
+        apiKey: '',
+        model: 'gemini-2.5-flash',
+        baseUrl: '',
+        isEnabled: false
+      }
     });
+  };
+
+  const handleLlmConfigChange = (newConfig: any) => {
+    setState((prev) => ({
+      ...prev,
+      llmConfig: newConfig
+    }));
   };
 
   // Trigger manual save indicator
@@ -703,6 +724,7 @@ export default function App() {
               onStateImport={handleStateImport}
               onStateClear={handleStateClear}
               onManualSave={handleManualSave}
+              onLlmConfigChange={handleLlmConfigChange}
             />
           )}
         </div>

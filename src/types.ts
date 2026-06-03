@@ -73,12 +73,21 @@ export interface MonthlySimulationResult {
   vatDoPrzeniesienia: number; // if the above is < 0, it is moving to next period
 }
 
+export interface LLMConfig {
+  provider: 'gemini' | 'openai' | 'anthropic' | 'ollama' | 'lmstudio' | 'custom';
+  apiKey: string;
+  model: string;
+  baseUrl?: string;
+  isEnabled: boolean;
+}
+
 export interface AppState {
   settings: CompanySettings;
   sales: SaleTransaction[];
   purchases: PurchaseTransaction[];
   citAdvances: CitAdvance[];
   vatRegistry: VatRegistry[];
+  llmConfig?: LLMConfig;
 }
 
 export type ImportType =

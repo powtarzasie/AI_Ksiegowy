@@ -5,6 +5,7 @@ import {defineConfig} from 'vite';
 
 export default defineConfig(() => {
   return {
+    base: './', // Zapewnia prawidłowe ścieżki do zasobów na GitHub Pages (uniknięcie 404)
     plugins: [react(), tailwindcss()],
     resolve: {
       alias: {
