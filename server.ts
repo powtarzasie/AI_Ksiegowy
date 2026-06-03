@@ -4,6 +4,8 @@ import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
+import os from 'os';
+import fs from 'fs';
 
 dotenv.config();
 
@@ -16,6 +18,39 @@ async function startServer() {
   // Set up body parsing with high limit for larger Excel exports
   app.use(express.json({ limit: '15mb' }));
   app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+
+  // Local Database Persistence Endpoints for Desktop Mode
+  app.get('/api/db/load', async (req, res) => {
+    try {
+      const dbDir = path.join(os.homedir(), '.symulator_podatkow');
+      const dbPath = path.join(dbDir, 'baza_danych.json');
+      if (fs.existsSync(dbPath)) {
+        const rawJson = fs.readFileSync(dbPath, 'utf8');
+        const parsed = JSON.parse(rawJson);
+        return res.json({ status: 'success', data: parsed });
+      } else {
+        return res.json({ status: 'not_found' });
+      }
+    } catch (err: any) {
+      console.error('Error loading database:', err);
+      return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.post('/api/db/save', async (req, res) => {
+    try {
+      const dbDir = path.join(os.homedir(), '.symulator_podatkow');
+      if (!fs.existsSync(dbDir)) {
+        fs.mkdirSync(dbDir, { recursive: true });
+      }
+      const dbPath = path.join(dbDir, 'baza_danych.json');
+      fs.writeFileSync(dbPath, JSON.stringify(req.body, null, 2), 'utf8');
+      return res.json({ status: 'success', path: dbPath });
+    } catch (err: any) {
+      console.error('Error saving database:', err);
+      return res.status(500).json({ error: err.message });
+    }
+  });
 
   // AI McKinsey Audit API Endpoint
   app.post('/api/gemini/analyze', async (req, res) => {
@@ -153,30 +188,28 @@ Wygeneruj kompletny audyt strategiczny McKinsey dla tych transakcji. Zasugeruj i
   // AI Tax Adviser and Qualification Helper
   app.post('/api/gemini/tax-adviser', async (req, res) => {
     try {
-      const { query = '', krs = 'Przeważająca działalność: 71.11.Z DZIAŁALNOŚĆ W ZAKRESIE ARCHITEKTURY. Pozostała działalność: 1. 74.10.Z DZIAŁALNOŚĆ W ZAKRESIE SPECJALISTYCZNEGO PROJEKTOWANIA, 2. 71.12.Z DZIAŁALNOŚĆ W ZAKRESIE INŻYNIERII I ZWIĄZANE Z NIĄ DORADZTWO TECHNICZNE.' } = req.body;
+      const { 
+        query = '', 
+        krs = 'Przeważająca działalność: 71.11.Z DZIAŁALNOŚĆ W ZAKRESIE ARCHITEKTURY. Pozostała działalność: 1. 74.10.Z DZIAŁALNOŚĆ W ZAKRESIE SPECJALISTYCZNEGO PROJEKTOWANIA, 2. 71.12.Z DZIAŁALNOŚĆ W ZAKRESIE INŻYNIERII I ZWIĄZANE Z NIĄ DORADZTWO TECHNICZNE.',
+        llmConfig = null
+      } = req.body;
 
       if (!query.trim()) {
         return res.status(400).json({ error: 'Brak zapytania' });
       }
 
-      if (!process.env.GEMINI_API_KEY) {
-        const fallback = generateHeuristicTaxAdviserOffset(query, krs);
-        return res.json({
-          status: 'fallback',
-          message: 'Odpowiedź wygenerowana lokalnym algorytmem heurystycznym. Wprowadź klucz GEMINI_API_KEY w panelu Settings > Secrets, aby uzyskać pełną ekspertyzę podatkową AI o wysokiej dokładności.',
-          data: fallback
-        });
-      }
+      const provider = llmConfig?.provider || 'gemini';
+      const userApiKey = llmConfig?.apiKey;
+      const effectiveApiKey = provider === 'gemini' ? (userApiKey || process.env.GEMINI_API_KEY) : '';
 
-      // Initialize official GenAI SDK as per gemini-api guidelines
-      const ai = new GoogleGenAI({
-        apiKey: process.env.GEMINI_API_KEY,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
-        }
-      });
+      const isPlaceholderKey = !effectiveApiKey || 
+        effectiveApiKey.startsWith('AIzaSyYourKey') || 
+        effectiveApiKey.includes('PLACEHOLDER') || 
+        effectiveApiKey.trim() === '' || 
+        effectiveApiKey.includes('wprowadź') ||
+        effectiveApiKey.includes('TwójKey') ||
+        effectiveApiKey.includes('...') ||
+        effectiveApiKey.length < 10;
 
       const systemInstruction = `Jesteś wybitnym polskim licencjonowanym doradcą podatkowym (specjalistą od podatku CIT i VAT) oraz partnerem prawnym w renomowanej kancelarii podatkowej.
 Twoim celem jest pomoc właścicielowi biura architektonicznego (PKD 71.11.Z - "Działalność w zakresie architektury") w LEGALNEJ i bezpiecznej optymalizacji podatkowej.
@@ -206,8 +239,132 @@ Bieżący rok podatkowy: 2026
 
 Oceniaj z perspektywy najnowszych interpretacji dyrektora KIS (Krajowej Informacji Skarbowej) oraz wyroków NSA (Naczelnego Sądu Administracyjnego). Pamiętaj o praktycznych przykładach (np. dla ubrań z logo, czy usług dla klientów).`;
 
+      // 1. OLLAMA / LM STUDIO / OPENAI Compatible Dynamic Endpoint Routing
+      if (['ollama', 'lmstudio', 'openai', 'custom'].includes(provider)) {
+        let baseUrl = llmConfig.baseUrl || '';
+        if (provider === 'ollama' && !baseUrl) baseUrl = 'http://localhost:11434/v1';
+        if (provider === 'lmstudio' && !baseUrl) baseUrl = 'http://localhost:1234/v1';
+        if (provider === 'openai' && !baseUrl) baseUrl = 'https://api.openai.com/v1';
+        
+        if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+        const url = `${baseUrl}/chat/completions`;
+        
+        const headers: Record<string, string> = {
+          'Content-Type': 'application/json'
+        };
+        
+        if (llmConfig.apiKey) {
+          headers['Authorization'] = `Bearer ${llmConfig.apiKey}`;
+        } else if (provider === 'openai') {
+          headers['Authorization'] = `Bearer ${process.env.OPENAI_API_KEY || ''}`;
+        }
+
+        const modelName = llmConfig.model || (provider === 'openai' ? 'gpt-4o-mini' : 'llama3');
+
+        const extendedPrompt = `${prompt}\n\nOdpowiedz WYŁĄCZNIE w formacie JSON o schemacie:\n{\n  "light": "green" lub "yellow" lub "red",\n  "category": "kategoria po polsku",\n  "vatDeductibility": "opis odliczenia VAT",\n  "citDeductibility": "opis odliczenia CIT",\n  "justification": "szczegółowe uzasadnienie prawne Art.15 CIT",\n  "accountingAdvice": "praktyczna pomoc dla księgowej",\n  "krsRelevance": "zbieżność z PKD architekta"\n}\nNie dodawaj żadnych cytatów, wstępów ani znaczników markdown \`\`\`json. Zwróć sam surowy obiekt JSON.`;
+
+        const response = await fetch(url, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({
+            model: modelName,
+            messages: [
+              { role: 'system', content: systemInstruction },
+              { role: 'user', content: extendedPrompt }
+            ],
+            temperature: 0.1,
+            response_format: { type: 'json_object' }
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Błąd HTTP ${response.status} od zewnętrznego dostawcy AI (${provider})`);
+        }
+
+        const resData: any = await response.json();
+        const content = resData.choices?.[0]?.message?.content || '';
+        
+        const jsonStart = content.indexOf('{');
+        const jsonEnd = content.lastIndexOf('}');
+        if (jsonStart === -1 || jsonEnd === -1) {
+          throw new Error('Nie odnaleziono poprawnej struktury JSON w odpowiedzi od lokalnego modelu AI.');
+        }
+        const jsonStr = content.substring(jsonStart, jsonEnd + 1);
+        const parsed = JSON.parse(jsonStr);
+        
+        return res.json({
+          status: 'success',
+          data: parsed
+        });
+      }
+
+      // 2. ANTHROPIC CLAUDE Dynamic Endpoint Routing
+      if (provider === 'anthropic') {
+        const apiKey = llmConfig.apiKey || process.env.ANTHROPIC_API_KEY || '';
+        const modelName = llmConfig.model || 'claude-3-5-sonnet-latest';
+        
+        const response = await fetch('https://api.anthropic.com/v1/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-api-key': apiKey,
+            'anthropic-version': '2023-06-01'
+          },
+          body: JSON.stringify({
+            model: modelName,
+            max_tokens: 3000,
+            system: systemInstruction,
+            messages: [
+              { role: 'user', content: `${prompt}\n\nOdpowiedz WYŁĄCZNIE w formacie JSON o schemacie:\n{\n  "light": "green" lub "yellow" lub "red",\n  "category": "kategoria po polsku",\n  "vatDeductibility": "opis odliczenia VAT",\n  "citDeductibility": "opis odliczenia CIT",\n  "justification": "szczegółowe uzasadnienie prawne Art.15 CIT",\n  "accountingAdvice": "praktyczna pomoc dla księgowej",\n  "krsRelevance": "zbieżność z PKD architekta"\n}` }
+            ]
+          })
+        });
+
+        if (!response.ok) {
+          throw new Error(`Błąd HTTP ${response.status} od dostawcy Anthropic API`);
+        }
+
+        const resData: any = await response.json();
+        const content = resData.content?.[0]?.text || '';
+        
+        const jsonStart = content.indexOf('{');
+        const jsonEnd = content.lastIndexOf('}');
+        if (jsonStart === -1 || jsonEnd === -1) {
+          throw new Error('Nie odnaleziono poprawnej struktury JSON w odpowiedzi od Claude Anthropic.');
+        }
+        const jsonStr = content.substring(jsonStart, jsonEnd + 1);
+        const parsed = JSON.parse(jsonStr);
+        
+        return res.json({
+          status: 'success',
+          data: parsed
+        });
+      }
+
+      // 3. GOOGLE GEMINI Dynamic Endpoint Routing / Default Fallback
+      if (provider === 'gemini' && isPlaceholderKey) {
+        const fallback = generateHeuristicTaxAdviserOffset(query, krs);
+        return res.json({
+          status: 'fallback',
+          message: 'Odpowiedź wygenerowana lokalnym algorytmem heurystycznym. Wprowadź poprawny klucz Gemini API w panelu Settings, aby odblokować pełną moc AI.',
+          data: fallback
+        });
+      }
+
+      // Initialize official GenAI SDK as per gemini-api guidelines
+      const ai = new GoogleGenAI({
+        apiKey: effectiveApiKey,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
+
+      const activeModel = llmConfig?.model || 'gemini-3.5-flash';
+
       const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
+        model: activeModel,
         contents: prompt,
         config: {
           systemInstruction: systemInstruction,
@@ -241,7 +398,7 @@ Oceniaj z perspektywy najnowszych interpretacji dyrektora KIS (Krajowej Informac
       const fallback = generateHeuristicTaxAdviserOffset(req.body.query || '', req.body.krs || '');
       return res.json({
         status: 'error_fallback',
-        message: `Wystąpił błąd po stronie serwera AI: ${error.message || error}. Zastąpiono lokalną symulacją doradcy podatkowego.`,
+        message: `Wystąpił błąd po stronie serwera AI: ${error.message || error}. Zastąpiono lokalną rzetelną symulacją doradcy podatkowego.`,
         data: fallback
       });
     }

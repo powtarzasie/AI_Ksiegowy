@@ -418,6 +418,7 @@ export default function App() {
   const [activeTab, setActiveTab ] = useState<'kpis' | 'yearly_executive' | 'registers' | 'settings_backup' | 'tax_advisor'>('kpis');
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [isSavedIndicator, setIsSavedIndicator] = useState(false);
+  const [isDiskSaved, setIsDiskSaved] = useState(false);
   const [showHelper, setShowHelper] = useState(false);
   const [lastSavedTime, setLastSavedTime] = useState<string>(() => {
     return new Date().toLocaleString('pl-PL', {
@@ -429,6 +430,29 @@ export default function App() {
       second: '2-digit'
     });
   });
+
+  // Load state from local disk on mount (Desktop mode)
+  useEffect(() => {
+    const loadFromDisk = async () => {
+      try {
+        const response = await fetch('/api/db/load');
+        if (response.ok) {
+          const resJson = await response.json();
+          if (resJson.status === 'success' && resJson.data) {
+            const diskState = resJson.data;
+            if (diskState && diskState.settings && Array.isArray(diskState.sales)) {
+              setState(diskState);
+              setIsDiskSaved(true);
+              console.log('Stan aplikacji załadowany pomyślnie z pliku fizycznego na dysku.');
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('Nie można załadować stanu z dysku (prawdopodobnie brak serwera lokalnego lub tryb webowy):', err);
+      }
+    };
+    loadFromDisk();
+  }, []);
 
   // Autosave when state changes
   useEffect(() => {
@@ -443,6 +467,26 @@ export default function App() {
         minute: '2-digit',
         second: '2-digit'
       }));
+
+      // Also try saving to physical HDD via background API
+      const saveToDisk = async () => {
+        try {
+          const response = await fetch('/api/db/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(state)
+          });
+          if (response.ok) {
+            setIsDiskSaved(true);
+          } else {
+            setIsDiskSaved(false);
+          }
+        } catch (e) {
+          setIsDiskSaved(false); // Silent fail in standard browser
+        }
+      };
+      saveToDisk();
+
       const timer = setTimeout(() => setIsSavedIndicator(false), 1200);
       return () => clearTimeout(timer);
     } catch (e) {
@@ -653,7 +697,7 @@ export default function App() {
               <div className="flex flex-col items-start md:items-end">
                 <div className="flex items-center gap-1.5 text-emerald-600 font-semibold text-xs uppercase tracking-wider">
                   <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse" />
-                  {isSavedIndicator ? 'Zapisywanie...' : 'Dane zapisane lokalnie'}
+                  {isSavedIndicator ? 'Zapisywanie...' : isDiskSaved ? 'Zapisano na dysku (Plik)' : 'Dane zapisane lokalnie'}
                 </div>
                 <span className="text-[10px] text-slate-400 mt-0.5 font-mono">
                   Ostatni autozapis: {lastSavedTime}

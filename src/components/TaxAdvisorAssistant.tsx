@@ -162,7 +162,8 @@ export default function TaxAdvisorAssistant({ state }: TaxAdvisorAssistantProps)
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           query: queryText,
-          krs: krsDescription
+          krs: krsDescription,
+          llmConfig: state.llmConfig
         })
       });
 
