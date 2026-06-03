@@ -103,10 +103,66 @@ export function calculateMonthlyTaxes(
     kosztyKUP += calculatePurchaseKUP(p);
   });
 
-  // 4. CIT Calculations
+  // 4. CIT Calculations (Cumulative & Progressive for Polish Sp. z o.o.)
+  // Let's compute YTD (Cumulative) CIT values up to month 'month'
+  let cumPrzychodyNetto = 0;
+  let cumPrzychodyDoCIT = 0;
+  let cumKosztyNetto = 0;
+  let cumKosztyKUP = 0;
+
+  for (let m = 1; m <= month; m++) {
+    const mSales = sales.filter((s) => isDateInMonth(s.data, year, m));
+    const mPurchases = purchases.filter((p) => isDateInMonth(p.data, year, m));
+
+    mSales.forEach((s) => {
+      cumPrzychodyNetto += s.netto;
+      if (s.czyCIT) {
+        cumPrzychodyDoCIT += s.netto;
+      }
+    });
+
+    mPurchases.forEach((p) => {
+      cumKosztyNetto += p.netto;
+      if (p.kosztCIT) {
+        cumKosztyKUP += calculatePurchaseKUP(p);
+      }
+    });
+  }
+
   const dochodCIT = Math.max(0, przychodyDoCIT - kosztyKUP);
+  const cumDochodCIT = Math.max(0, cumPrzychodyDoCIT - cumKosztyKUP);
+  
+  // Ordynacja Podatkowa Art. 63 § 1: Tax base is rounded to nearest PLN (pełne złote)
+  const cumPodstawaOpodatkowania = Math.round(cumDochodCIT);
   const CIT_RATE_PERCENT = settings.stawkaCIT; // 9 or 19
-  const podatekCIT = Math.round(dochodCIT * (CIT_RATE_PERCENT / 100));
+  
+  // Ordynacja Podatkowa Art. 63 § 1: Progressive cumulative tax is rounded to nearest PLN (pełne złote)
+  const cumPodatekCIT = Math.round(cumPodstawaOpodatkowania * (CIT_RATE_PERCENT / 100));
+
+  // Determine cumulative CIT up to previous month (month - 1)
+  let prevCumPodatekCIT = 0;
+  if (month > 1) {
+    let pCumPrzychodyDoCIT = 0;
+    let pCumKosztyKUP = 0;
+
+    for (let m = 1; m < month; m++) {
+      const mSales = sales.filter((s) => isDateInMonth(s.data, year, m));
+      const mPurchases = purchases.filter((p) => isDateInMonth(p.data, year, m));
+
+      mSales.forEach((s) => {
+        if (s.czyCIT) pCumPrzychodyDoCIT += s.netto;
+      });
+      mPurchases.forEach((p) => {
+        if (p.kosztCIT) pCumKosztyKUP += calculatePurchaseKUP(p);
+      });
+    }
+    const pCumDochodCIT = Math.max(0, pCumPrzychodyDoCIT - pCumKosztyKUP);
+    const pCumPodstawaOpodatkowania = Math.round(pCumDochodCIT);
+    prevCumPodatekCIT = Math.round(pCumPodstawaOpodatkowania * (CIT_RATE_PERCENT / 100));
+  }
+
+  // Monthly calculated progressive CIT advance for this specific month is:
+  const podatekCIT = Math.max(0, cumPodatekCIT - prevCumPodatekCIT);
 
   // Find paid advances for this month
   const monthAdvance = citAdvances.find((a) => parseInt(a.id, 10) === month || a.miesiac === month);
@@ -160,6 +216,14 @@ export function calculateMonthlyTaxes(
     korektyVat: Math.round(korektyVat * 100) / 100,
     vatDoZaplaty: Math.round(vatDoZaplaty * 100) / 100,
     vatDoPrzeniesienia: Math.round(vatDoPrzeniesienia * 100) / 100,
+    
+    // YTD Cumulative values
+    cumPrzychodyNetto: Math.round(cumPrzychodyNetto * 100) / 100,
+    cumPrzychodyDoCIT: Math.round(cumPrzychodyDoCIT * 100) / 100,
+    cumKosztyNetto: Math.round(cumKosztyNetto * 100) / 100,
+    cumKosztyKUP: Math.round(cumKosztyKUP * 100) / 100,
+    cumDochodCIT: Math.round(cumDochodCIT * 100) / 100,
+    cumPodatekCIT: Math.round(cumPodatekCIT * 100) / 100,
   };
 }
 

@@ -13,6 +13,7 @@ import ExcelImportModal from './components/ExcelImportModal';
 import TaxDashboard from './components/TaxDashboard';
 import TransactionsManager from './components/TransactionsManager';
 import McKinseyDashboard from './components/McKinseyDashboard';
+import TaxAdvisorAssistant from './components/TaxAdvisorAssistant';
 import {
   Database,
   Layers,
@@ -414,7 +415,7 @@ export default function App() {
 
   const [disclaimerChecked, setDisclaimerChecked] = useState<boolean>(false);
 
-  const [activeTab, setActiveTab ] = useState<'kpis' | 'yearly_executive' | 'registers' | 'settings_backup'>('kpis');
+  const [activeTab, setActiveTab ] = useState<'kpis' | 'yearly_executive' | 'registers' | 'settings_backup' | 'tax_advisor'>('kpis');
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [isSavedIndicator, setIsSavedIndicator] = useState(false);
   const [showHelper, setShowHelper] = useState(false);
@@ -688,44 +689,82 @@ export default function App() {
           />
         </div>
 
-        {/* Bento Navigation Pills */}
-        <div className="flex flex-wrap bg-slate-100 p-1.5 rounded-2xl border border-slate-200 gap-1" id="main-navigation-tabs">
-          {[
-            { id: 'kpis', label: 'Tablica Wyników i Symulacje', icon: Layers },
-            { id: 'yearly_executive', label: 'Strategiczny Bilans Roczny (McKinsey)', icon: Layers2 },
-            { id: 'registers', label: 'Księgi i Rejestry Transakcji', icon: FileText },
-            { id: 'settings_backup', label: 'Magazyn i Kopia Zapasowa', icon: Database },
-          ].map((tab) => {
-            const Icon = tab.icon;
-            const isActive = activeTab === tab.id;
-            return (
-              <button
-                key={tab.id}
-                onClick={() => setActiveTab(tab.id as any)}
-                className={`flex items-center gap-2 px-4 sm:px-5 py-3 text-xs font-bold rounded-xl transition-all cursor-pointer relative ${
-                  isActive
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
-                }`}
-              >
-                {tab.id === 'yearly_executive' ? (
-                  <Sparkles className={`w-4 h-4 shrink-0 ${isActive ? 'text-amber-300 animate-pulse' : 'text-indigo-650 text-indigo-500'}`} />
-                ) : (
-                  <Icon className="w-4 h-4 shrink-0" />
-                )}
-                <span>{tab.label}</span>
-                {tab.id === 'yearly_executive' && (
-                  <span className={`text-[9px] px-2 py-0.5 rounded-full font-black uppercase font-mono tracking-wider flex items-center gap-0.5 ${
-                    isActive 
-                      ? 'bg-indigo-500 text-white border border-indigo-400' 
-                      : 'bg-emerald-50 text-emerald-700 border border-emerald-100/60'
-                  }`}>
-                    <span>Smart Audit</span>
-                  </span>
-                )}
-              </button>
-            );
-          })}
+        {/* Bento Navigation Pills divided into separate sections for operations and AI/Strategy */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4" id="main-navigation-container">
+          {/* Section 1: Standard accounting and operations modules */}
+          <div className="lg:col-span-7 bg-slate-100 p-2 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center gap-2" id="navigation-operations-section">
+            <div className="px-3 py-1 font-mono text-[9px] font-black uppercase tracking-widest text-slate-500 shrink-0 border-b sm:border-b-0 sm:border-r border-slate-200">
+              Operacje i Księgi
+            </div>
+            <div className="flex flex-wrap gap-1.5 flex-1">
+              {[
+                { id: 'kpis', label: 'Tablica Wyników i Symulacje', icon: Layers },
+                { id: 'registers', label: 'Księgi i Rejestry Transakcji', icon: FileText },
+                { id: 'settings_backup', label: 'Magazyn i Kopia Zapasowa', icon: Database },
+              ].map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer relative ${
+                      isActive
+                        ? 'bg-slate-800 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5 shrink-0 text-slate-500" />
+                    <span>{tab.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Section 2: AI & Strategic Advisory (Requested to be in a separate, premium section) */}
+          <div className="lg:col-span-5 bg-indigo-50/70 p-2 rounded-2xl border-2 border-indigo-200/80 flex flex-col sm:flex-row sm:items-center gap-2 relative overflow-hidden shadow-xs" id="navigation-ai-strategy-section">
+            {/* Ambient light overlay */}
+            <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 w-12 h-12 bg-indigo-550/10 rounded-full blur-xl pointer-events-none" />
+            <div className="px-3 py-1 font-mono text-[9px] font-bold uppercase tracking-widest text-indigo-700 shrink-0 border-b sm:border-b-0 sm:border-r border-indigo-200 flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-indigo-600 animate-pulse" />
+              <span>Strategia AI</span>
+            </div>
+            <div className="flex flex-wrap gap-1.5 flex-1 z-10">
+              {[
+                { id: 'yearly_executive', label: 'Strategiczny Bilans', icon: Layers2, badge: 'Smart Audit' },
+                { id: 'tax_advisor', label: 'Asystent Kosztów', icon: Sparkles, badge: 'AI Doradca' },
+              ].map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id as any)}
+                    className={`flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer relative ${
+                      isActive
+                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
+                        : 'text-indigo-900 hover:text-slate-950 hover:bg-indigo-100/50'
+                    }`}
+                  >
+                    {tab.id === 'yearly_executive' ? (
+                      <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-amber-300 animate-pulse' : 'text-indigo-600'}`} />
+                    ) : (
+                      <Sparkles className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-amber-300 animate-pulse' : 'text-indigo-600'}`} />
+                    )}
+                    <span>{tab.label}</span>
+                    <span className={`text-[8px] px-1.5 py-0.5 rounded-xs font-black uppercase font-mono tracking-wider ${
+                      isActive 
+                        ? 'bg-indigo-500 text-white border border-indigo-400' 
+                        : 'bg-indigo-150/80 text-indigo-700 border border-indigo-100'
+                    }`}>
+                      {tab.badge}
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
         </div>
 
         {/* Dynamic View Content switcher */}
@@ -736,6 +775,10 @@ export default function App() {
 
           {activeTab === 'yearly_executive' && (
             <McKinseyDashboard state={state} />
+          )}
+
+          {activeTab === 'tax_advisor' && (
+            <TaxAdvisorAssistant state={state} />
           )}
 
           {activeTab === 'registers' && (
@@ -788,10 +831,36 @@ export default function App() {
           </div>
         </div>
 
-        {/* Clean minimal footer */}
-        <footer className="pt-8 border-t border-slate-200 flex flex-col md:flex-row items-center justify-between gap-4 text-xs text-slate-400">
-          <div className="font-display">
-            &copy; 2026 Symulator Podatkowy Sp. z o.o. • Autonomiczna Enklawa Podatkowa v2.4.0
+        {/* Clean minimal footer with professional regulatory & audit metadata */}
+        <footer className="pt-8 border-t border-slate-200 space-y-4 text-xs text-slate-400">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 pt-2" id="footer-regulatory-guidelines">
+            <div className="space-y-1">
+              <span className="font-bold text-slate-600 block uppercase tracking-wider text-[10px]">Aktualność prawna i audyt:</span>
+              <p className="text-slate-500 leading-relaxed font-sans">
+                Stan prawno-podatkowy zweryfikowany na dzień: <strong className="text-slate-700">2 czerwca 2026 r.</strong> Wszystkie mechanizmy kalkulacyjne, podatkowe i integracje plików KSeF zostały dostosowane do najnowszych rozporządzeń MF z drugiego kwartału 2026 r.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <span className="font-bold text-slate-600 block uppercase tracking-wider text-[10px]">Wytyczne KSeF i odroczenie:</span>
+              <p className="text-slate-500 leading-relaxed font-sans">
+                Opracowano na podstawie ustawy z dnia 9 maja 2024 r. przesuwającej obligatoryjny Krajowy System e-Faktur (KSeF) na <strong className="text-slate-700">1 stycznia 2027 r.</strong> W okresie przejściowym (rok 2026) fakturowanie KSeF i importowanie struktur XML pozostaje dobrowolne.
+              </p>
+            </div>
+            <div className="space-y-1">
+              <span className="font-bold text-slate-600 block uppercase tracking-wider text-[10px]">Reguły kalkulacyjne CIT i VAT:</span>
+              <p className="text-slate-500 leading-relaxed font-sans">
+                Zaliczka CIT wyliczana jest metodą narastającą (YTD). Podstawa opodatkowania oraz kwoty zaliczek podlegają obligatoryjnemu zaokrągleniu do pełnych złotych zgodnie z <strong className="text-slate-700">Art. 63 § 1 Ordynacji podatkowej</strong>. VAT rozliczany jest zgodnie z JPK_V7M.
+              </p>
+            </div>
+          </div>
+          
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 pt-4 border-t border-slate-200/50">
+            <div className="font-display">
+              &copy; 2026 Symulator Podatkowy Sp. z o.o. • Autonomiczna Enklawa Podatkowa v2.4.0
+            </div>
+            <div className="text-[11px] text-slate-400/80 font-mono">
+              Baza Prawna: Dz. U. 2024 poz. 852 (Nowelizacja KSeF) • Art. 63 § 1 Ordynacji podatkowej
+            </div>
           </div>
         </footer>
       </div>

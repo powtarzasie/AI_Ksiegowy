@@ -150,6 +150,103 @@ Wygeneruj kompletny audyt strategiczny McKinsey dla tych transakcji. Zasugeruj i
     }
   });
 
+  // AI Tax Adviser and Qualification Helper
+  app.post('/api/gemini/tax-adviser', async (req, res) => {
+    try {
+      const { query = '', krs = 'Przeważająca działalność: 71.11.Z DZIAŁALNOŚĆ W ZAKRESIE ARCHITEKTURY. Pozostała działalność: 1. 74.10.Z DZIAŁALNOŚĆ W ZAKRESIE SPECJALISTYCZNEGO PROJEKTOWANIA, 2. 71.12.Z DZIAŁALNOŚĆ W ZAKRESIE INŻYNIERII I ZWIĄZANE Z NIĄ DORADZTWO TECHNICZNE.' } = req.body;
+
+      if (!query.trim()) {
+        return res.status(400).json({ error: 'Brak zapytania' });
+      }
+
+      if (!process.env.GEMINI_API_KEY) {
+        const fallback = generateHeuristicTaxAdviserOffset(query, krs);
+        return res.json({
+          status: 'fallback',
+          message: 'Odpowiedź wygenerowana lokalnym algorytmem heurystycznym. Wprowadź klucz GEMINI_API_KEY w panelu Settings > Secrets, aby uzyskać pełną ekspertyzę podatkową AI o wysokiej dokładności.',
+          data: fallback
+        });
+      }
+
+      // Initialize official GenAI SDK as per gemini-api guidelines
+      const ai = new GoogleGenAI({
+        apiKey: process.env.GEMINI_API_KEY,
+        httpOptions: {
+          headers: {
+            'User-Agent': 'aistudio-build',
+          }
+        }
+      });
+
+      const systemInstruction = `Jesteś wybitnym polskim licencjonowanym doradcą podatkowym (specjalistą od podatku CIT i VAT) oraz partnerem prawnym w renomowanej kancelarii podatkowej.
+Twoim celem jest pomoc właścicielowi biura architektonicznego (PKD 71.11.Z - "Działalność w zakresie architektury") w LEGALNEJ i bezpiecznej optymalizacji podatkowej.
+Zasugeruj jak najszersze, w pełni zgodne z literą prawa (100% legalne), zakwalifikowanie podanego wydatku jako koszt uzyskania przychodu (KUP) w spółce z o.o.
+
+Przeanalizuj wydatek w kontekście polskiej ustawy o podatku dochodowym od osób prawnych (Ustawa o CIT) – zwłaszcza art. 15 ust. 1, oraz ustawy o VAT (prawo do odliczenia z uwzględnieniem ograniczeń np. gastronomii czy pojazdów).
+Wydaj jednoznaczną ocenę ("Zielone", "Żółte" lub "Czerwone" światło):
+- Zielone światło (Bezpieczny koszt): Koszt bezpośrednio związany z projektowaniem, pracownią, marketingiem lub BHP. Nie budzi wątpliwości fiskusa.
+- Żółte światło (Średnie ryzyko): Koszt, który można zakwalifikować w koszty firmy pod pewnymi warunkami formalnymi (np. trwałym naklejeniem logo, spisaniem protokołu, opisem celu biznesowego na fakturze, udowodnieniem powiązania ze startem w przetargu).
+- Czerwone światło (Wysokie ryzyko): Wydatek osobisty, reprezentacja sprzeczna z prawem, brak jakiegokolwiek racjonalnego związku z PKD 71.11.Z (duże prawdopodobieństwo zakwestionowania przez Urząd Skarbowy).
+
+Zawsze podaj:
+1. "light" (jedno z: "green", "yellow", "red")
+2. "category" (nazwa kategorii kosztowej po polsku, np. "Koszty Spotkań z Klientami", "Odzież Służbowa / BHP", "Narzędzia Projektowe")
+3. "vatDeductibility" (informacja o odliczeniu podatku VAT, w tym ograniczenia i warunki)
+4. "citDeductibility" (informacja o rozliczeniu CIT, np. 100% KUP, 75% KUP itp.)
+5. "justification" (Wyjątkowo precyzyjne, urzędowe, profesjonalne uzasadnienie prawne, powołujące się na przepisy np. art. 15 ust. 1 ustawy o CIT. Musi brzmieć profesjonalnie, zawierać solidne logiczne powiązanie z PKD architekta - projektowanie, inwentaryzacje, nadzór techniczny, wizualizacje. Użyj argumentów, że koszt ten służy zabezpieczeniu i zachowaniu źródła przychodów).
+6. "accountingAdvice" (Konkretna, praktyczna instrukcja jak rozmawiać z księgową i co powiedzieć. Podaj listę dokładnych argumentów i wymogów formalnych, np. 'Jak oznaczyć odzież logo', 'Co wpisać na odwrocie faktury z restauracji', 'Jak udokumentować cel spotkania (np. zapisem w kalendarzu czy mailem do klienta)', 'O co poprosić biuro rachunkowe').
+7. "krsRelevance" (Wykazanie spójności z PKD 71.11.Z oraz KRS podanym przez użytkownika).
+
+Odpowiedź musi być wyłącznie w formacie JSON zgodnym z podanym schematem. Pisz profesjonalnym, urzędowym, ale jasnym językiem polskim.`;
+
+      const prompt = `Zbadaj wydatek:
+Wydatek użytkownika: "${query}"
+Informacje o działalności (KRS/PKD): "${krs}"
+Bieżący rok podatkowy: 2026
+
+Oceniaj z perspektywy najnowszych interpretacji dyrektora KIS (Krajowej Informacji Skarbowej) oraz wyroków NSA (Naczelnego Sądu Administracyjnego). Pamiętaj o praktycznych przykładach (np. dla ubrań z logo, czy usług dla klientów).`;
+
+      const response = await ai.models.generateContent({
+        model: 'gemini-3.5-flash',
+        contents: prompt,
+        config: {
+          systemInstruction: systemInstruction,
+          responseMimeType: 'application/json',
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              light: { type: Type.STRING, description: "Status bezpieczeństwa. Dozwolone wartości: 'green', 'yellow', 'red'." },
+              category: { type: Type.STRING, description: "Kategoria kosztu." },
+              vatDeductibility: { type: Type.STRING, description: "Jak odliczamy podatek VAT z tego kosztu (np. 100%, 50%, brak)." },
+              citDeductibility: { type: Type.STRING, description: "Jak księgujemy w CIT (100% KUP, 75% KUP, wyłączony z KUP itp.)." },
+              justification: { type: Type.STRING, description: "Argument prawno-podatkowy wykazujący celowość kosztu, powołujący się na art. 15 ust. 1 ustawy o CIT." },
+              accountingAdvice: { type: Type.STRING, description: "Instrukcja rozmowy i weryfikacji z księgową. Wskazówki dokumentacyjne." },
+              krsRelevance: { type: Type.STRING, description: "Powiązanie kosztu z profilem architektonicznym z KRS użytkownika." }
+            },
+            required: ["light", "category", "vatDeductibility", "citDeductibility", "justification", "accountingAdvice", "krsRelevance"]
+          }
+        }
+      });
+
+      const responseText = response.text || '';
+      const parsedData = JSON.parse(responseText.trim());
+
+      return res.json({
+        status: 'success',
+        data: parsedData
+      });
+
+    } catch (error: any) {
+      console.error('Error in tax-adviser endpoint:', error);
+      const fallback = generateHeuristicTaxAdviserOffset(req.body.query || '', req.body.krs || '');
+      return res.json({
+        status: 'error_fallback',
+        message: `Wystąpił błąd po stronie serwera AI: ${error.message || error}. Zastąpiono lokalną symulacją doradcy podatkowego.`,
+        data: fallback
+      });
+    }
+  });
+
   // Serve static UI assets under production, or let Vite process in development
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
@@ -280,6 +377,98 @@ function generateHeuristicAnalysis(sales: any[], purchases: any[], settings: any
     advantages,
     bottlenecks,
     mckinseyMatrix
+  };
+}
+
+function generateHeuristicTaxAdviserOffset(query: string, krs: string) {
+  const normalized = query.toLowerCase().trim();
+  
+  if (normalized.includes('kaw') || normalized.includes('pij') || normalized.includes('jedz') || normalized.includes('restaurac') || normalized.includes('obiad') || normalized.includes('kawiarn') || normalized.includes('lunch') || normalized.includes('spotka') || normalized.includes('restor')) {
+    return {
+      light: 'yellow',
+      category: 'Spotkania z Klientami i Gastronomia',
+      vatDeductibility: 'Brak odliczenia VAT (Art. 88 ust. 1 pkt 4 ustawy o VAT zabrania odliczania podatku od usług gastronomicznych, chyba że jest to katering zakupiony oddzielnie).',
+      citDeductibility: '100% KUP. Możesz zaliczyć całą kwotę brutto z faktury restauracyjnej do kosztów uzyskania przychodów CIT, pod warunkiem wskazania, że celem spotkania było omówienie projektu architektonicznego, uzgodnienia umowne lub inwentaryzacje.',
+      justification: `Zakup usługi gastronomicznej w restauracji lub kawiarni w celu omówienia rzutów kondygnacji i założeń projektowych z inwestorem bezpośrednio wiąże się z PKD 71.11.Z oraz regulacją art. 15 ust. 1 ustawy o CIT. Wydatki te nie mają charakteru reprezentacji wystawnej, skrajnie luksusowej (która jest wyłączona na mocy art. 16 ust. 1 pkt 28 CIT), lecz są standardowymi, racjonalnymi kosztami ponoszonymi w toku negocjacji biznesowych mających na celu osiągnięcie oraz zabezpieczenie przychodów spółki.`,
+      accountingAdvice: `1. Poproś obsługę restauracji o fakturę VAT wystawioną bezpośrednio na Twoją spółkę z o.o.\n2. Wyjaśnij księgowej, że spotkanie miało charakter roboczo-negocjacyjny (ustalenia architektoniczne, dobór materiałów budowlanych), a nie wystawny bankiet.\n3. Napisz odręcznie na odwrocie faktury lub dołącz notatkę: "Spotkanie robocze z inwestorem [Imię / Nazwisko / Nazwa Firmy] w sprawie projektu budynku jednorodzinnego przy ul. X, celem zatwierdzenia fazy koncepcyjnej". To chroni koszt przed zakwalifikowaniem jako "reprezentacja wyłączona z KUP".`,
+      krsRelevance: `Wysoka spójność. Świadczenie usług projektowych w architekturze wymaga bezpośrednich konsultacji z inwestorami i podwykonawcami w celach koordynacji branżowej (konstrukcja, instalacje), co często odbywa się poza stałym biurem.`
+    };
+  }
+
+  if (normalized.includes('ubran') || normalized.includes('odzie') || normalized.includes('buty') || normalized.includes('garnitur') || normalized.includes('kurtk') || normalized.includes('koszul') || normalized.includes('marynark') || normalized.includes('kask') || normalized.includes('kamizel')) {
+    const isBHP = normalized.includes('kask') || normalized.includes('kamizel') || normalized.includes('bhp') || normalized.includes('budow');
+    return {
+      light: isBHP ? 'green' : 'yellow',
+      category: isBHP ? 'Środki Ochrony Indywidualnej (BHP na budowie)' : 'Branded Apparel / Odzież Służbowa z Logo',
+      vatDeductibility: '100% odliczenia podatku VAT.',
+      citDeductibility: '100% KUP (Koszt Uzyskania Przychodu).',
+      justification: isBHP 
+        ? `Zakup kasku ochronnego, butów roboczych ze stalowym noskiem i kamizelki odblaskowej jest bezpośrednio wymagany przepisami prawa budowlanego i BHP podczas wykonywania nadzorów autorskich na czynnych placach budowy (art. 15 ust. 1 ustawy o CIT).`
+        : `Zakup odzieży codziennej (garnitur, koszula, polo) na potrzeby spółki architektonicznej stanowi koszt uzyskania przychodu tylko wtedy, gdy odzież ta zostanie trwale i widocznie opatrzona cechami charakterystycznymi marki (np. na stałe naszyte logo, wyhaftowane inicjały spółki). Taki zabieg pozbawia ubrania waloru osobistego, nadając im dominujący charakter reklamowo-reprezentacyjny (zgodny z art. 15 ust. 1 i art. 16 ust. 1 pkt 28 CIT).`,
+      accountingAdvice: isBHP
+        ? `1. Przekaż fakturę księgowej i zaznacz, że zakupiony sprzęt ochronny (kask, buty) był niezbędny do sprawowania prawnie narzuconego nadzoru autorskiego na budowie.\n2. Warto w historii transakcji zachować pisemne wezwanie od inwestora do wizytacji na placu budowy lub wpis w dziennik budowy.`
+        : `1. Upewnij się, że odzież została trwale znakowana (np. zleć haft komputerowy logo spółki na piersi marynarki lub koszuli).\n2. Pokaż księgowej dowód: fakturę za usługę znakowania (haftu) oraz zrób zdjęcie ubrania z widocznym logo. Uzasadnij, że jest to odzież wykorzystywana wyłącznie podczas prezentacji projektów dla kluczowych inwestorów w celu reprezentacji tożsamości korporacyjnej spółki.`,
+      krsRelevance: `Wysoka spójność. Architekt wykonujący nadzór autorski (PKD 71.11.Z) osobiście wizytuje place budowy, gdzie przepisy BHP wymagają zabezpieczenia ciała, a spotkania z deweloperami wymagają profesjonalnej tożsamości wizualnej marki.`
+    };
+  }
+
+  if (normalized.includes('program') || normalized.includes('licencj') || normalized.includes('soft') || normalized.includes('autocad') || normalized.includes('revit') || normalized.includes('archicad') || normalized.includes('sketchup') || normalized.includes('adobe') || normalized.includes('windows') || normalized.includes('cad') || normalized.includes('blender') || normalized.includes('office') || normalized.includes('smet')) {
+    return {
+      light: 'green',
+      category: 'Narzędzia Specjalistyczne (Licencje i SaaS)',
+      vatDeductibility: '100% odliczenia VAT (w przypadku zakupów z UE, np. Adobe/Autodesk, rozliczamy Import Usług z 23% VAT naliczonym i należnym jednocześnie).',
+      citDeductibility: '100% KUP (zaliczenie bezpośrednie lub przez amortyzację wartości niematerialnych i prawnych, jeżeli licencja roczna przekracza 10 000 zł i nadaje się do amortyzacji).',
+      justification: `Oprogramowanie do projektowania wspomaganego komputerowo (BIM/CAD), programy graficzne do wizualizacji oraz pakiety biurowe do specyfikacji budowlanych to podstawowe, nieodzowne narzędzia pracy w PKD 71.11.Z. Their koszt kwalifikuje się bezdyskusyjnie na podstawie art. 15 ust. 1 ustawy o CIT jako służący celowi osiągnięcia i zachowania przychodów i bezpośrednio powiązany z działalnością projektowania budynków.`,
+      accountingAdvice: `1. Przekaż fakturę księgowej. Jeśli licencję zakupiono od podmiotu zagranicznego (np. faktura w EUR/USD z Irlandii od Adobe/Trimble/Autodesk), poinformuj ją, że to import usług.\n2. Upewnij się, że na fakturze widnieje Twój unijny numer NIP (NIP-UE z przedrostkiem PL). To zapobiegnie doliczeniu zagranicznego podatku VAT.`,
+      krsRelevance: `Pełna zgodność bezpośrednia. Brak oprogramowania CAD/BIM uniemożliwia realizację głównej działalności sklasyfikowanej pod kodem PKD 71.11.Z.`
+    };
+  }
+
+  if (normalized.includes('auto') || normalized.includes('samoch') || normalized.includes('paliw') || normalized.includes('leasing') || normalized.includes('napraw') || normalized.includes('ubezp') || normalized.includes('opon') || normalized.includes('ostrad') || normalized.includes('parking')) {
+    return {
+      light: 'green',
+      category: 'Eksploatacja i Leasing Pojazdów',
+      vatDeductibility: '50% odliczenia VAT w przypadku użytku mieszanego (prywatno-firmowego) lub 100% VAT jeśli prowadzona jest pełna ewidencja przebiegu pojazdu i zgłoszono formularz VAT-26 do Urzędu Skarbowego.',
+      citDeductibility: '75% KUP dla kosztów używania pojazdu mieszanego (naprawy, serwis, paliwo) oraz 150 000 zł / 225 000 zł limity odpisów leasingowych dla aut spalinowych/elektrycznych.',
+      justification: `Auto osobowe w firmie architektonicznej służy do szybkiego poruszania się na inwentaryzacje, spotkania z urzędami celem uzyskania pozwoleń na budowę oraz nadzory na rozproszonych placach budów. Wydatki paliwowe i eksploatacyjne stanowią uzasadnione uderzenie kosztowe chroniące realizację planów finansowych podmiotu.`,
+      accountingAdvice: `1. Poinformuj biuro rachunkowe o statusie pojazdu (większość przedsiębiorców korzysta z trybu mieszanego 50% VAT / 75% CIT, co nie wymaga uciążliwego rozpisywania kilometrówek).\n2. Zbierz faktury za opłaty autostradowe, parkingi na mieście przy wizytach u inwestorów i przekaż je zbiorczo. One również podlegają limitowi 75% KUP w trybie mieszanym.`,
+      krsRelevance: `Wysoka spójność. Architektura to praca w terenie, wymagająca mobilnego przemieszczania sprzętu pomiarowego oraz dojazdu do placów budowy rozlokowanych poza siedzibą spółki.`
+    };
+  }
+
+  if (normalized.includes('ksiazk') || normalized.includes('literatur') || normalized.includes('albu') || normalized.includes('czasopi') || normalized.includes('magazyn') || normalized.includes('norm') || normalized.includes('eurokod') || normalized.includes('szkolen') || normalized.includes('kurs') || normalized.includes('konferencj')) {
+    return {
+      light: 'green',
+      category: 'Rozwój Kwalifikacji i Baza Literatury Fachowej',
+      vatDeductibility: '100% odliczenia VAT (lub stawka obniżona 5%/8% dla książek drukowanych/prasy).',
+      citDeductibility: '100% KUP. Koszt zaliczany bezpośrednio.',
+      justification: `Zgodnie z art. 15 ust. 1 ustawy o CIT, ciągłe podnoszenie kwalifikacji, znajomość najnowszych dynamicznie zmieniających się norm budowlanych (Eurokody), prawa budowlanego oraz śledzenie trendów światowej architektury przy pomocy czasopism specjalistycznych bezpośrednio wpływa na konkurencyjność projektów i zabezpiecza przed wadami prawno-konstrukcyjnymi, co pozwala spółce zachować nienaruszone źródło przychodów.`,
+      accountingAdvice: `1. Fakturę za zakup książek, albumów o designie, subskrypcji czasopism czy szkoleń (np. z oprogramowania Revit, przepisów prawa) daj księgowej.\n2. Jeśli to szkolenie z certyfikatem imiennym dla pracownika lub członka zarządu, ugruntuj celowość – szkolenie poprawia jakość wykonywanych rzutów architektonicznych w biurze.`,
+      krsRelevance: `Spójne z zawodem zaufania publicznego. Architekt ma prawny i etyczny obowiązek tworzenia obiektów bezpiecznych, zgodnych z najnowszymi warunkami technicznymi i normami budownictwa.`
+    };
+  }
+
+  if (normalized.includes('ekspres') || normalized.includes('mebl') || normalized.includes('biurk') || normalized.includes('fote') || normalized.includes('drzw') || normalized.includes('krzes') || normalized.includes('lamp') || normalized.includes('rezerw')) {
+    return {
+      light: 'green',
+      category: 'Wyposażenie Pracowni i Ergonomia',
+      vatDeductibility: '100% odliczenia podatku VAT.',
+      citDeductibility: '100% KUP (dla jednorazowych zakupów poniżej 10 050 zł netto).',
+      justification: `Zakup wysokiej jakości mebli biurowych, ergonomicznego fotela do wielogodzinnej pracy przy projektach oraz ekspresu do kawy do serwowania poczęstunku klientom odwiedzającym pracownię architektoniczną jest w pełni uzasadniony. Poprawia ergonomię pracy oraz kreuje profesjonalny wizerunek spółki, co ułatwia pozyskiwanie lukratywnych kontraktów (art. 15 ust. 1 ustawy o CIT).`,
+      accountingAdvice: `1. Faktury za meble, lampy kreślarskie czy ekspres do kawy oddaj księgowej.\n2. Wytłumacz, że ekspres jest udostępniony w pracowni, gdzie spotykasz się z klientami w celu prezentacji fizycznych makiet budynków – kawa podawana deweloperom wspiera budowanie zaufania handlowego i stanowi koszt ogólnozakładowy wspierający sprzedaż (reklama/BHP).`,
+      krsRelevance: `Bardzo wysoka spójność. Pracownia architektoniczna to wizytówka twórcy - estetyczne, ergonomiczne meble i poczęstunek dla klientów budują wizerunek biura projektowego klasy premium.`
+    };
+  }
+
+  // General default fallback
+  return {
+    light: 'yellow',
+    category: 'Koszty Operacyjne Wspierające Biznes',
+    vatDeductibility: 'Zazwyczaj 100% odliczenia (o ile koszt nie dotyczy zakwaterowania ani usług gastronomicznych, na które nałożono ustawowe wyłączenia).',
+    citDeductibility: 'Zazwyczaj 100% KUP, o ile wykazana zostanie celowość i wpływ na generowanie przychodu w spółce z o.o.',
+    justification: `Wydatek ten, choć ma charakter ogólny, przyczynia się do zachowania sprawności operacyjnej biura projektowego i personelu technicznego, co zabezpiecza poprawną realizację umów i terminowość projektów w myśl art. 15 ust. 1 ustawy o CIT.`,
+    accountingAdvice: `1. Zachowaj fakturę VAT prawidłowo wystawioną na pełną nazwę i NIP Twojej spółki z o.o.\n2. Upewnij się, że potrafisz krótko opisać księgowej logiczny związek tego zakupu ze sprawami firmy (np. 'dostęp do szybkiego internetu pozwala na transferowanie ciężkich plików projektowych CAD o rozmiarach setek megabajtów na serwery klienta').`,
+    krsRelevance: `Spójne z ogólnymi kosztami administracyjno-operacyjnymi niezbędnymi dla utrzymania spółki z o.o. w gotowości do fakturowania usług projektowych z zakresu architektury.`
   };
 }
 

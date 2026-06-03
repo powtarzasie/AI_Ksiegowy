@@ -482,7 +482,10 @@ export default function StorageControls({
 
               {/* Model Select/Input */}
               <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Model Językowy</label>
+                <div className="flex items-center justify-between">
+                  <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Model Językowy</label>
+                  <span className="text-[9px] text-indigo-600 font-medium font-sans">Możesz wpisać ręcznie dowolny ✎</span>
+                </div>
                 <input
                   type="text"
                   value={model}
@@ -490,6 +493,7 @@ export default function StorageControls({
                   placeholder="np. gemini-2.5-flash"
                   className="w-full h-9 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-900 font-mono focus:bg-white focus:border-indigo-500 focus:outline-hidden transition-all"
                 />
+                <span className="text-[9px] text-slate-400 leading-tight">Wpisz zalecany lub własny model zgodny z API dostawcy.</span>
               </div>
 
               {/* API Key (collapsible or hidden for Ollama and LM Studio) */}
@@ -672,6 +676,33 @@ export default function StorageControls({
                   </p>
                   <p>
                     W tym trybie aplikacja kieruje zapytania do Twojego własnego komputera (adres localhost / 127.0.0.1). Całość analizy modelu AI odbywa się <strong>na Twoim własnym procesorze i karcie graficznej</strong>. Żadne dane podlegające audytowi nie zostają przesyłane do internetu. Otrzymujesz bezpieczną, darmową i kompletnie offline'ową enklawę inteligencji!
+                  </p>
+                </div>
+              </details>
+
+              {/* Accordion 5: Jak wpisać i wybrać inny model ręcznie */}
+              <details className="group bg-white rounded-2xl border border-slate-150/70 p-4 [&_summary::-webkit-details-marker]:hidden transition-all duration-200 hover:border-slate-300">
+                <summary className="flex items-center justify-between cursor-pointer select-none">
+                  <span className="text-xs font-bold text-slate-800 flex items-center gap-2">
+                    <span className="text-indigo-600">05.</span> Czy mogę wpisać inny model niż zalecane? W jaki sposób?
+                  </span>
+                  <span className="text-xs text-slate-400 group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <div className="mt-3 text-xs text-slate-500 space-y-2.5 leading-relaxed pl-7 border-t border-slate-100 pt-3">
+                  <p>
+                    <strong>Tak, w pełni!</strong> Wybór modelu nie ogranicza się tylko do domyślnych propozycji (takich jak Gemini Flash). Pole <strong>Model Językowy</strong> w konfiguratorze jest aktywne i w pełni edytowalne — możesz w nie kliknąć i wpisać dowolny identyfikator nowego lub zaawansowanego modelu obsługiwanego przez Twojego wybranego dostawcę.
+                  </p>
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 space-y-1.5 font-sans">
+                    <p className="font-semibold text-slate-800 text-[11px]">Przykłady identyfikatorów, które możesz wpisać:</p>
+                    <ul className="list-disc pl-4 space-y-1 text-slate-650 text-[11px]">
+                      <li><strong className="text-slate-800">Dla Google Gemini:</strong> Wpisz <code className="bg-slate-200 px-1 py-0.5 rounded text-indigo-700 font-mono text-[9px]">gemini-2.5-pro</code> (dla maksymalnie głębokich i precyzyjnych audytów) lub <code className="bg-slate-200 px-1 py-0.5 rounded text-indigo-700 font-mono text-[9px]">gemini-2.5-flash</code> (szybki, ekonomiczny).</li>
+                      <li><strong className="text-slate-800">Dla OpenAI:</strong> Wpisz <code className="bg-slate-200 px-1 py-0.5 rounded text-indigo-700 font-mono text-[9px]">gpt-4o</code> (pełny, potężny model flagowy GPT-4o) lub <code className="bg-slate-200 px-1 py-0.5 rounded text-indigo-700 font-mono text-[9px]">gpt-4o-mini</code>.</li>
+                      <li><strong className="text-slate-800">Dla Anthropic:</strong> Wpisz <code className="bg-slate-200 px-1 py-0.5 rounded text-indigo-700 font-mono text-[9px]">claude-3-5-sonnet-latest</code> lub <code className="bg-slate-200 px-1 py-0.5 rounded text-indigo-700 font-mono text-[9px]">claude-3-5-haiku-latest</code>.</li>
+                      <li><strong className="text-slate-800">Dla Ollama / LM Studio:</strong> Wpisz dowolny pobrany lokalnie model, np. <code className="bg-slate-200 px-1 py-0.5 rounded text-indigo-700 font-mono text-[9px]">llama3.2</code>, <code className="bg-slate-200 px-1 py-0.5 rounded text-indigo-700 font-mono text-[9px]">gemma2:9b</code> lub <code className="bg-slate-200 px-1 py-0.5 rounded text-indigo-700 font-mono text-[9px]">mistral</code>.</li>
+                    </ul>
+                  </div>
+                  <p className="text-[11px] text-slate-450 italic">
+                    Wskazówka: Po wpisaniu własnej nazwy modelu językoweego kliknij zielony przycisk <strong>"Zapisz Konfigurację API"</strong>, aby rzetelnie utrwalić ustawienia w pamięci trwałej przeglądarki.
                   </p>
                 </div>
               </details>

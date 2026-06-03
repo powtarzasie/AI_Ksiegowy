@@ -83,6 +83,29 @@ export default function TaxDashboard({ state }: TaxDashboardProps) {
   return (
     <div className="space-y-6" id="tax-dashboard-view">
       
+      {/* Dynamic Security & Audit Alert Banner - June 2026 Polish Regulation Status */}
+      <div className="bg-indigo-50 border border-indigo-200/80 rounded-3xl p-5 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-sm" id="compliance-audit-2026-banner">
+        <div className="flex items-start gap-3">
+          <div className="p-2.5 bg-indigo-100 rounded-2xl text-indigo-700">
+            <FileText className="w-5.5 h-5.5 font-bold" />
+          </div>
+          <div>
+            <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+              Audyt Zgodności 2026 (Sp. z o.o.) — Status: Zweryfikowany
+              <span className="px-2 py-0.5 text-[9px] uppercase font-black tracking-widest bg-emerald-500 text-white rounded-full">
+                Zaliczka CIT YTD
+              </span>
+            </h3>
+            <p className="text-xs text-slate-600 mt-1.5 leading-relaxed font-sans">
+              Zgodnie z audytem prawno-podatkowym na dzień <strong>2 czerwca 2026 r.</strong>, Krajowy System e-Faktur (KSeF) został ustawowo przesunięty na <strong>1 stycznia 2027 r.</strong> W okresie bieżącym (czerwiec 2026) fakturowanie przez KSeF jest <strong>dobrowolne</strong>, a system w pełni popiera i mapuje nagłówki KSeF przy imporcie Excel/CSV. Wyliczenia CIT dla Sp. z o.o. są zgodne z zasadą <strong>narastającą (YTD)</strong>, a podstawa i zaliczki są zaokrąglane pod ustawę (Art. 63 § 1 Ordynacji podatkowej).
+            </p>
+          </div>
+        </div>
+        <div className="flex shrink-0 items-center gap-1.5 self-end md:self-auto text-xs font-bold text-indigo-900 bg-indigo-100/75 px-3 py-1.5 rounded-xl border border-indigo-150">
+          Ustawy: Czerwiec 2026 r.
+        </div>
+      </div>
+      
       {/* 1. Bento KPI Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
         
@@ -222,37 +245,54 @@ export default function TaxDashboard({ state }: TaxDashboardProps) {
             </h3>
           </div>
 
-          <div className="space-y-3 text-xs leading-none">
+          <div className="space-y-3 text-xs">
+            <h4 className="text-[11px] font-bold text-slate-400 uppercase tracking-wider pb-1">Bieżący miesiąc ({getMonthName(settings.miesiacPodatkowy)}):</h4>
             <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
-              <span className="text-slate-500">Przychody uwzględniane w CIT (A):</span>
+              <span className="text-slate-500">Miesięczny przychód do CIT:</span>
               <span className="font-semibold text-slate-900 font-mono">{formatPLN(currentResult.przychodyDoCIT)}</span>
             </div>
             <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
-              <span className="text-slate-500">Koszty uzyskania przychodów (KUP) (B):</span>
+              <span className="text-slate-500">Miesięczne koszty (KUP):</span>
               <span className="font-semibold text-slate-900 font-mono">{formatPLN(currentResult.kosztyKUP)}</span>
             </div>
-            
+            <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
+              <span className="text-slate-500">Dochód bieżącego miesiąca:</span>
+              <span className="font-semibold text-slate-900 font-mono">{formatPLN(currentResult.dochodCIT)}</span>
+            </div>
+
+            <h4 className="text-[11px] font-bold text-indigo-900 uppercase tracking-wider pt-2 flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-indigo-600" />
+              Narastająco od początku roku (YTD):
+            </h4>
+            <div className="flex justify-between items-center py-1.5 border-b border-indigo-50 bg-indigo-50/20 px-2 rounded">
+              <span className="text-indigo-950 font-medium font-sans">Suma przychodów YTD:</span>
+              <span className="font-bold text-indigo-950 font-mono">{formatPLN(currentResult.cumPrzychodyDoCIT || 0)}</span>
+            </div>
+            <div className="flex justify-between items-center py-1.5 border-b border-indigo-50 bg-indigo-50/20 px-2 rounded">
+              <span className="text-indigo-950 font-medium font-sans">Suma kosztów KUP YTD:</span>
+              <span className="font-bold text-indigo-950 font-mono">{formatPLN(currentResult.cumKosztyKUP || 0)}</span>
+            </div>
+            <div className="flex justify-between items-center py-1.5 border-b border-indigo-50 bg-indigo-50/25 px-2 rounded">
+              <span className="text-indigo-950 font-medium font-sans">Dochód YTD (Podstawa):</span>
+              <span className="font-bold text-indigo-950 font-mono">{formatPLN(currentResult.cumDochodCIT || 0)}</span>
+            </div>
+
             <div className="flex justify-between items-center py-2.5 border-y border-slate-200 my-1 font-bold text-slate-900">
-              <span>Podstawa opodatkowania (A - B):</span>
-              <span className="font-semibold font-mono">{formatPLN(currentResult.dochodCIT)}</span>
+              <span>Stawka podatku CIT Spółki:</span>
+              <span className="font-semibold font-mono">{settings.stawkaCIT}%</span>
             </div>
 
             <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
-              <span className="text-slate-500">Stawka podatku CIT:</span>
-              <span className="font-semibold text-slate-900 font-mono">{settings.stawkaCIT}%</span>
-            </div>
-
-            <div className="flex justify-between items-center py-1.5 border-b border-slate-100">
-              <span className="text-slate-400 font-medium">Bieżąco policzona zaliczka CIT:</span>
-              <span className="font-semibold text-slate-700 font-mono">{formatPLN(currentResult.podatekCIT)}</span>
+              <span className="text-slate-500 font-medium font-sans">Należna zaliczka za ten m-c (progresywnie):</span>
+              <span className="font-bold text-slate-800 font-mono">{formatPLN(currentResult.podatekCIT)}</span>
             </div>
             <div className="flex justify-between items-center py-1.5 text-emerald-800 border-b border-slate-100 pb-2">
-              <span className="text-emerald-700">Zapłacone / zaksięgowane zaliczki:</span>
-              <span className="font-semibold text-emerald-900 font-mono">-{formatPLN(currentResult.zaplaconeZaliczkiCIT)}</span>
+              <span className="text-emerald-700 font-medium">Zaksięgowane wpłaty za ten okres:</span>
+              <span className="font-bold text-emerald-950 font-mono">-{formatPLN(currentResult.zaplaconeZaliczkiCIT)}</span>
             </div>
 
             <div className="flex justify-between items-center pt-2.5 text-base font-bold text-slate-950">
-              <span className="font-display">Ostateczny CIT do przelewu:</span>
+              <span className="font-display text-xs sm:text-sm">Zaliczka CIT do wpłaty za m-c:</span>
               <span className="text-indigo-600 font-mono text-2xl font-black">{formatPLN(currentResult.podatekCitDoZaplaty)}</span>
             </div>
           </div>

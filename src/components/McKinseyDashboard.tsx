@@ -682,7 +682,7 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
 
           {/* Interactive McKinsey Strategic Scenario Controls */}
           <div className="bg-slate-50 rounded-2xl p-5 border border-slate-150 space-y-4" id="simulated-future-sliders">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-705 text-slate-700 uppercase tracking-wider">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-slate-700 uppercase tracking-wider">
               <Sparkles className="w-3.5 h-3.5 text-indigo-500 animate-pulse" />
               Interaktywny Symulator Strategiczny (What-If)
             </div>
@@ -693,46 +693,72 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
 
             <div className="space-y-4 pt-1">
               {/* Slider 1: Sales */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-605 text-slate-600 font-medium">Prognozowana DALSZA Sprzedaż (netto):</span>
-                  <span className="font-bold text-indigo-600 font-mono">+{formatPLN(simulatedFutureSales)}</span>
+              <div className="space-y-1.5 p-3.5 bg-white border border-slate-200 rounded-2xl shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span className="text-slate-700 font-bold text-xs font-display">Prognozowana DALSZA Sprzedaż (netto):</span>
+                  <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                    <span className="text-[10px] text-slate-400 font-bold font-sans">ZAPISZ / WPISZ KWOTĘ:</span>
+                    <div className="relative">
+                      <input 
+                        type="number"
+                        min="0"
+                        value={simulatedFutureSales || 0}
+                        onChange={(e) => setSimulatedFutureSales(Math.max(0, Number(e.target.value)))}
+                        className="w-28 text-right font-bold font-mono text-xs border border-indigo-200 focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 focus:outline-hidden bg-white rounded-lg pl-2 pr-8 py-1.5 text-indigo-700"
+                        placeholder="0"
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-indigo-600">PLN</span>
+                    </div>
+                  </div>
                 </div>
                 <input
                   type="range"
                   min="0"
-                  max="200000"
+                  max="500000"
                   step="5000"
-                  value={simulatedFutureSales}
+                  value={Math.min(500000, simulatedFutureSales)}
                   onChange={(e) => setSimulatedFutureSales(Number(e.target.value))}
                   className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-indigo-600"
                 />
-                <div className="flex justify-between text-[11px] text-slate-450 font-mono">
+                <div className="flex justify-between text-[10px] text-slate-400 font-mono">
                   <span>0 zł</span>
-                  <span>100 000 zł</span>
-                  <span>200 000 zł</span>
+                  <span>250 000 zł</span>
+                  <span>500 050 zł+ (możesz wpisać wyższą powyżej)</span>
                 </div>
               </div>
 
               {/* Slider 2: Costs */}
-              <div className="space-y-1">
-                <div className="flex justify-between text-xs">
-                  <span className="text-slate-605 text-slate-600 font-medium">Prognozowane DALSZE Koszty (KUP):</span>
-                  <span className="font-bold text-rose-605 text-rose-600 font-mono">+{formatPLN(simulatedFutureCosts)}</span>
+              <div className="space-y-1.5 p-3.5 bg-white border border-slate-200 rounded-2xl shadow-2xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                  <span className="text-slate-700 font-bold text-xs font-display">Prognozowane DALSZE Koszty (KUP):</span>
+                  <div className="flex items-center gap-1.5 self-end sm:self-auto">
+                    <span className="text-[10px] text-slate-400 font-bold font-sans">ZAPISZ / WPISZ KWOTĘ:</span>
+                    <div className="relative">
+                      <input 
+                        type="number"
+                        min="0"
+                        value={simulatedFutureCosts || 0}
+                        onChange={(e) => setSimulatedFutureCosts(Math.max(0, Number(e.target.value)))}
+                        className="w-28 text-right font-bold font-mono text-xs border border-rose-200 focus:border-rose-500 focus:ring-1 focus:ring-rose-500 focus:outline-hidden bg-white rounded-lg pl-2 pr-8 py-1.5 text-rose-700"
+                        placeholder="0"
+                      />
+                      <span className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] font-bold text-rose-600">PLN</span>
+                    </div>
+                  </div>
                 </div>
                 <input
                   type="range"
                   min="0"
-                  max="150000"
-                  step="3000"
-                  value={simulatedFutureCosts}
+                  max="350000"
+                  step="5000"
+                  value={Math.min(350000, simulatedFutureCosts)}
                   onChange={(e) => setSimulatedFutureCosts(Number(e.target.value))}
                   className="w-full h-1.5 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-rose-500"
                 />
-                <div className="flex justify-between text-[11px] text-slate-450 font-mono">
+                <div className="flex justify-between text-[10px] text-slate-400 font-mono">
                   <span>0 zł</span>
-                  <span>75 000 zł</span>
-                  <span>150 000 zł</span>
+                  <span>175 000 zł</span>
+                  <span>350 000 zł+ (możesz wpisać wyższą powyżej)</span>
                 </div>
               </div>
             </div>
@@ -1099,7 +1125,7 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
 
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
                     <div className="space-y-1 font-sans">
-                      <label className="text-[9px] font-bold text-slate-404 text-slate-400 block uppercase">Prawdopodobieństwo</label>
+                      <label className="text-[9px] font-bold text-slate-400 block uppercase">Prawdopodobieństwo</label>
                       <select
                         value={newRevProb}
                         onChange={(e) => setNewRevProb(e.target.value as any)}
@@ -1111,7 +1137,7 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
                       </select>
                     </div>
                     <div className="space-y-1 font-sans">
-                      <label className="text-[9px] font-bold text-slate-404 text-slate-400 block uppercase">Kategoria</label>
+                      <label className="text-[9px] font-bold text-slate-400 block uppercase">Kategoria</label>
                       <select
                         value={newRevCategory}
                         onChange={(e) => setNewRevCategory(e.target.value)}
@@ -1121,11 +1147,11 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
                         <option value="SaaS / Stałe">SaaS / Stały abonament</option>
                         <option value="Doradztwo">Doradztwo / Usługi</option>
                         <option value="Szkolenie">Szkolenie / Wsparcie</option>
-                        <option value="Inne">Inne źródło</option>
+                        <option value="Inne font-sans">Inne źródło</option>
                       </select>
                     </div>
                     <div className="space-y-1 font-sans">
-                      <label className="text-[9px] font-bold text-slate-404 text-slate-400 block uppercase font-sans">Planowany miesiąc</label>
+                      <label className="text-[9px] font-bold text-slate-400 block uppercase font-sans">Planowany miesiąc</label>
                       <select
                         value={newRevMonth}
                         onChange={(e) => setNewRevMonth(parseInt(e.target.value, 10))}
@@ -1368,7 +1394,7 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
                   style={{ width: `${currentRatioToLimit}%` }}
                 />
               </div>
-              <div className="flex justify-between text-[9px] text-slate-405 text-slate-400 font-mono">
+              <div className="flex justify-between text-[9px] text-slate-400 font-mono">
                 <span>0% limitu</span>
                 <span>Wykorzystanie: {currentRatioToLimit.toFixed(1)}%</span>
                 <span>100% (2M EUR)</span>

@@ -63,6 +63,14 @@ export interface MonthlySimulationResult {
   podatekCIT: number; // dochodCIT * stawkaCIT
   zaplaconeZaliczkiCIT: number;
   podatekCitDoZaplaty: number; // podatekCIT - zaplaconeZaliczkiCIT (cumulative/current)
+  
+  // Cumulative (YTD - od początku roku) fields for Sp. z o.o. progressive tax
+  cumPrzychodyNetto?: number;
+  cumPrzychodyDoCIT?: number;
+  cumKosztyNetto?: number;
+  cumKosztyKUP?: number;
+  cumDochodCIT?: number;
+  cumPodatekCIT?: number;
 
   // VAT
   vatNaleznySuma: number; // output VAT from sales
