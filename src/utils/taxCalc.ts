@@ -29,6 +29,34 @@ export function isDateInMonth(dateStr: string, year: number, month: number): boo
 }
 
 /**
+ * Calculates Koszty Uzyskania Przychodu (KUP) for a given purchase,
+ * taking into account Polish tax laws regarding vehicle cost limitations.
+ */
+export function calculatePurchaseKUP(p: {
+  netto: number;
+  vat: number;
+  odliczenieVat: number;
+  kategoria: string;
+  kosztCIT: boolean;
+}): number {
+  if (!p.kosztCIT) return 0;
+  
+  const dedPercent = p.odliczenieVat; // 0, 50, 100
+  const deductibleVat = p.vat * (dedPercent / 100);
+  const nonDeductibleVat = p.vat - deductibleVat;
+  
+  const totalCostBeforeClawback = p.netto + nonDeductibleVat;
+  
+  // Passenger vehicle (kategoria contains "pojazd") mixed-use clawback (75% limit)
+  const isVehicle = p.kategoria && p.kategoria.toLowerCase().includes('pojazd');
+  if (isVehicle && dedPercent < 100) {
+    return totalCostBeforeClawback * 0.75;
+  }
+  
+  return totalCostBeforeClawback;
+}
+
+/**
  * Calculates tax details for a specific month
  */
 export function calculateMonthlyTaxes(
@@ -66,19 +94,13 @@ export function calculateMonthlyTaxes(
   monthPurchases.forEach((p) => {
     kosztyNetto += p.netto;
 
-    // Polish tax code car expense / VAT logic:
-    // - odliczenieVat: 100% -> Full VAT deductible, KUP is netto
-    // - odliczenieVat: 50%  -> 50% of VAT is deductible, other 50% is non-deductible and added to KUP-eligible cost.
-    // - odliczenieVat: 0%   -> 0% of VAT is deductible, 100% of VAT added to KUP-eligible cost.
+    // Calculate deductible VAT
     const dedPercent = p.odliczenieVat; // 0, 50, 100
     const deductibleVat = p.vat * (dedPercent / 100);
-    const nonDeductibleVat = p.vat - deductibleVat;
-
     vatNaliczonySuma += deductibleVat;
 
-    if (p.kosztCIT) {
-      kosztyKUP += (p.netto + nonDeductibleVat);
-    }
+    // Sum KUP using central business rule including 75% limit for cars
+    kosztyKUP += calculatePurchaseKUP(p);
   });
 
   // 4. CIT Calculations

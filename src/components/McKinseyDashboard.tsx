@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AppState, MonthlySimulationResult } from '../types';
-import { calculateMonthlyTaxes } from '../utils/taxCalc';
+import { calculateMonthlyTaxes, calculatePurchaseKUP } from '../utils/taxCalc';
 import {
   Sliders,
   Clock,
@@ -304,11 +304,8 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
   let totalDeductibleKup = 0;
 
   purchases.forEach((p) => {
-    // Apply CIT koszt rule (netto + non deductible vat)
-    const dedPercent = p.odliczenieVat;
-    const deductibleVat = p.vat * (dedPercent / 100);
-    const nonDeductibleVat = p.vat - deductibleVat;
-    const kupValue = p.kosztCIT ? (p.netto + nonDeductibleVat) : 0;
+    // Apply CIT koszt rule (including vehicle clawbacks)
+    const kupValue = calculatePurchaseKUP(p);
 
     if (kupValue > 0) {
       const catName = p.kategoria || 'Inne';
@@ -365,10 +362,7 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
     const monthIdx = monthStr ? parseInt(monthStr, 10) - 1 : 0;
     if (monthIdx >= 0 && monthIdx < 12) {
       monthlyCosts[monthIdx] += p.netto;
-      const dedPercent = p.odliczenieVat;
-      const deductibleVat = p.vat * (dedPercent / 100);
-      const nonDeductibleVat = p.vat - deductibleVat;
-      const kupValue = p.kosztCIT ? (p.netto + nonDeductibleVat) : 0;
+      const kupValue = calculatePurchaseKUP(p);
       monthlyKUPSum[monthIdx] += kupValue;
     }
   });
@@ -395,10 +389,7 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
   purchases.forEach(p => {
     if (p.kosztCIT) {
       const isFixedCategory = ['biuro', 'księg', 'telefon', 'internet', 'saas', 'subskr', 'licencj', 'lokal', 'czynsz'].some(word => p.kategoria.toLowerCase().includes(word));
-      const dedPercent = p.odliczenieVat;
-      const deductibleVat = p.vat * (dedPercent / 100);
-      const nonDeductibleVat = p.vat - deductibleVat;
-      const kupValue = p.netto + nonDeductibleVat;
+      const kupValue = calculatePurchaseKUP(p);
 
       // If recurring cost or small recurring items
       if (isFixedCategory || p.netto < 3500) {

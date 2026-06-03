@@ -10,6 +10,7 @@ import {
   ParsedRowResult,
   AppState
 } from '../types';
+import { calculatePurchaseKUP } from './taxCalc';
 
 /**
  * Parses XLSX/CSV file buffer using SheetJS and returns sheets with their rows
@@ -438,10 +439,9 @@ export function validateImportRows(
       // Accumulate
       totalPurchasesNetto += nettoVal;
       const deductibleVat = validatedData.vat * (odliczenieVatVal / 100);
-      const nonDeductibleVat = validatedData.vat - deductibleVat;
       totalPurchasesVat += deductibleVat;
       if (kosztCitVal) {
-        totalCitKup += (nettoVal + nonDeductibleVat);
+        totalCitKup += calculatePurchaseKUP(validatedData);
       }
 
     } else if (type === 'zaliczki_cit') {
