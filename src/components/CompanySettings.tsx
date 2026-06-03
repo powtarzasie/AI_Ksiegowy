@@ -185,7 +185,7 @@ export default function CompanySettingsComponent({
                           <span>1. Pełne Maskowanie Kontrahentów</span>
                         </div>
                         <p className="leading-relaxed text-slate-400">
-                          Wszelkie nazwy dostawców, odbiorców oraz osób fizycznych są <strong>całkowicie usuwane w pamięci urządzenia</strong> przed wysłaniem zapytania do modeli AI. Wszelkie nazwy własne zastępowane są neutralnymi etykietami, np. <code>[KONTRAHENT_A]</code> lub <code>[DOSTAWCA_USŁUG_01]</code>. Do chmury nigdy nie trafia żadne sformułowanie identyfikujące partnera biznesowego.
+                          Wszelkie nazwy dostawców, odbiorców oraz osób fizycznych są <strong>całkowicie usuwane w pamięci podręcznej RAM Twojego komputera</strong> przed sformułowaniem i wysłaniem zapytania do modeli AI. Wszelkie nazwy własne zastępowane są neutralnymi etykietami, np. <code>[KONTRAHENT_A]</code> lub <code>[DOSTAWCA_USŁUG_01]</code>. Do chmury nigdy nie trafia żadne sformułowanie identyfikujące partnera biznesowego.
                         </p>
                       </div>
 
@@ -195,7 +195,7 @@ export default function CompanySettingsComponent({
                           <span>2. Redakcja Numerów Faktur</span>
                         </div>
                         <p className="leading-relaxed text-slate-400">
-                          Numery faktur (np. <i>FV/1042/2026/XYZ</i>) stanowią unikalne identyfikatory, które mogłyby wskazywać na strukturę zakupową Twojej formy. Z tego powodu nasz system <strong>automatycznie maskuje numery dokumentów</strong>, zmieniając je na losowe kody porządkowe typu <code>[FAKTURA_01]</code>, <code>[RACHUNEK_02]</code>. Do LLM płyną wyłącznie suche liczby podatkowe i kody.
+                          Numery faktur (np. <i>FV/1042/2026/XYZ</i>) stanowią unikalne identyfikatory, które mogłyby wskazywać na strukturę zakupową Twojej firmy. Z tego powodu nasz system <strong>automatycznie maskuje numery dokumentów lokalnie w przeglądarce</strong>, zmieniając je na losowe kody porządkowe typu <code>[FAKTURA_01]</code>, <code>[RACHUNEK_02]</code>. Do LLM płyną wyłącznie suche liczby podatkowe i kody.
                         </p>
                       </div>
 
@@ -210,12 +210,32 @@ export default function CompanySettingsComponent({
                       </div>
                     </div>
 
+                    <div className="bg-slate-900/80 p-5 rounded-2xl border border-slate-800 space-y-4">
+                      <h5 className="font-bold text-white text-xs flex items-center gap-2">
+                        <span>🧠</span> Jak technicznie wygląda proces lokalnego pre-maskowania? (GDPR-Safe Proxy)
+                      </h5>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-[11px] text-slate-300 leading-relaxed">
+                        <div className="space-y-2">
+                          <span className="font-semibold text-emerald-400 block">KROK I: Lokalna inicjalizacja filtru (Klient)</span>
+                          <p>
+                            Gdy uruchamiasz funkcję <strong className="text-indigo-300">Smart Audit</strong>, aplikacja nie wysyła pliku, arkusza ani surowej tabeli. Specjalny parser transakcji w przeglądarce skanuje wiersz po wierszu i izoluje wyłącznie: kwotę netto, stawkę VAT, rodzaj podatku CIT oraz ogólną kategorię (np. "abonament", "paliwo", "reklama").
+                          </p>
+                        </div>
+                        <div className="space-y-2">
+                          <span className="font-semibold text-indigo-400 block">KROK II: Wyczyszczenie danych przed transmisją do Cloud API</span>
+                          <p>
+                            Wszelkie kolumny i właściwości obiektów zawierające nazwy kontrahentów, NIP, e-maile czy szczegółowe adresy są wymazywane przed uformowaniem tekstowego promptu HTTP do API Google/OpenAI. W efekcie, zewnętrzny model LLM przetwarza wyłącznie matematyczny fantom badawczy: model kalkulacji CIT dla fikcyjnej firmy Sp. z o.o.
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
                     <div className="bg-indigo-950/45 border border-indigo-900/60 rounded-xl p-4.5 text-[11px] text-slate-300 flex items-start gap-3">
                       <span className="text-emerald-400 text-lg mt-0.5">🛡️</span>
                       <div>
                         <p className="font-bold text-white mb-1">Zgodność z RODO (GDPR Compliance):</p>
                         <p className="leading-relaxed">
-                          Zgodnie z Rozporządzeniem Ogólnym o Ochronie Danych Osobowych (RODO), przesyłanie danych osobowych do zewnętrznych dostawców AI bez odpowiednich umów powierzenia przetwarzania danych może stanowić naruszenie prawa. Ten symulator <strong>nigdy nie wysyła danych osobowych, adresowych, kontaktowych ani handlowych identyfikatorów</strong> do API zewnętrznych. AI otrzymuje wyłącznie anonimowe agregaty liczbowe i ogólne kategorie opisowe (np. "paliwo", "reklama", "oprogramowanie"). Twój biznes jest w 100% bezpieczny.
+                          Zgodnie z Rozporządzeniem Ogólnym o Ochronie Danych Osobowych (RODO), przesyłanie danych osobowych do zewnętrznych dostawców AI bez odpowiednich umów powierzenia przetwarzania danych może stanowić naruszenie prawa. Ten symulator <strong>nigdy nie wysyła danych osobowych, adresowych, kontaktowych ani handlowych identyfikatorów</strong> do API zewnętrznych. AI otrzymuje wyłącznie anonimowe agregaty liczbowe i ogólne kategorie opisowe (np. "paliwo23", "reklama", "oprogramowanie"). Twój biznes jest w 100% bezpieczny.
                         </p>
                       </div>
                     </div>

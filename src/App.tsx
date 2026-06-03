@@ -941,13 +941,29 @@ export default function App() {
                 </p>
               </div>
 
-              <div className="space-y-2 bg-emerald-950/20 border border-emerald-900/35 p-3 rounded-2xl">
+              <div className="space-y-4 bg-emerald-950/20 border border-emerald-900/35 p-4 rounded-2xl">
                 <h4 className="font-bold text-emerald-400 flex items-center gap-2 text-xs">
-                  <span>🛡️</span> 5. Anonimizacja RODO dla zapytań AI
+                  <span>🛡️</span> 5. 100% Bezpieczne AI & RODO (Pre-Maskowanie Lokalnie w Przeglądarce!)
                 </h4>
-                <p className="text-slate-300 text-[11px] leading-relaxed">
-                  Zgodnie z wymaganiami RODO (GDPR), nasz symulator stosuje wbudowany, automatyczny <strong>filtr maskujący dane wrażliwe przed wysyłką do modeli AI</strong>. Nazwy kontrahentów są rewidowane do bezpiecznych znaczników typu <code>[KONTRAHENT_A]</code>, a numery faktur są zamieniane na neutralne ID <code>[FAKTURA_01]</code>. AI analizuje wyłącznie zanonimizowany bilans i wartości liczbowe bez kontaktu z danymi osobowymi.
-                </p>
+                <div className="text-slate-300 text-[11px] leading-relaxed space-y-2">
+                  <p>
+                    Zgodnie z wymaganiami RODO (GDPR), przesyłanie surowych danych osobowych lub handlowych do modeli chmurowych (np. Google Gemini, OpenAI) mogłoby naruszyć przepisy. Nasz symulator posiada <strong>wbudowaną tarczę prywatności działającą lokalnie na Twoim urządzeniu</strong>:
+                  </p>
+                  <ul className="list-disc pl-4 space-y-1 text-slate-300">
+                    <li>
+                      <strong>Kto i gdzie maskuje?</strong> Kod JavaScript uruchomiony bezpośrednio w Twojej przeglądarce (na Twoim komputerze), <strong>zanim wyśle jakiekolwiek zapytanie do chmury AI</strong>, wyszukuje i całkowicie rewiduje poufne dane. Do chmury LLM trafia już gotowy, oczyszczony tekst.
+                    </li>
+                    <li>
+                      <strong>Maskowanie Kontrahentów:</strong> Nazwy dostawców (np. <i>"Orlen S.A."</i> czy imiona i nazwiska osób fizycznych) są usuwane w locie i zastępowane bezpiecznymi znacznikami, takimi jak <code>[DOSTAWCA_PALIW_01]</code>, <code>[KONTRAHENT_A]</code>.
+                    </li>
+                    <li>
+                      <strong>Ukrywanie Numerów Faktur:</strong> Rzeczywiste numery dokumentów (np. <i>"FV/1204/2026/PRO"</i>) są zamieniane w pamięci RAM Twojego komputera na neutralne etykiety indeksowe <code>[FAKTURA_01]</code>, uniemożliwiając powiązanie analizy z realną fakturą.
+                    </li>
+                    <li>
+                      <strong>Zero-Knowledge o Twojej Spółce:</strong> Twoja nazwa firmy, adres oraz NIP są całkowicie pomijane. Dla modelu AI analizowany zbiór jest całkowicie anonimowym modelem matematycznym standardowej Spółki z o.o. w Polsce, rozliczającej CIT (9%/19%) i VAT (23%).
+                    </li>
+                  </ul>
+                </div>
               </div>
             </div>
 
