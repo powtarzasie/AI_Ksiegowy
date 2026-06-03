@@ -189,7 +189,7 @@ export default function TaxAdvisorAssistant({ state }: TaxAdvisorAssistantProps)
 
       const resData = await response.json();
       
-      if (resData && resData.data) {
+      if (resData && resData.status === 'success' && resData.data) {
         const result: TaxQualificationResult = resData.data;
         setCurrentResult(result);
         setIsOffline(false);
