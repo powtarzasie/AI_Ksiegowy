@@ -16,7 +16,9 @@ import {
   Trash2,
   Calendar,
   PiggyBank,
-  Percent
+  Percent,
+  Users,
+  AppWindow
 } from 'lucide-react';
 
 interface FutureExpense {
@@ -415,6 +417,8 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
 
   let totalFixedCosts = 0;
   let totalVariableCosts = 0;
+  let totalPersonnelCosts = 0;
+  let totalLicenseCosts = 0;
 
   purchases.forEach(p => {
     if (p.kosztCIT) {
@@ -427,6 +431,13 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
         totalFixedCosts += kupValue;
       } else {
         totalVariableCosts += kupValue;
+      }
+
+      if (['wynagrodzeni', 'zlecenie', 'dzieło', 'zus', 'osobow', 'etat', 'b2b', 'kontrakt'].some(w => catLower.includes(w) || nameLower.includes(w))) {
+        totalPersonnelCosts += kupValue;
+      }
+      if (['licencj', 'oprogramowani', 'saas', 'subskrypcj', 'aplikacj', 'cloud', 'chmur'].some(w => catLower.includes(w) || nameLower.includes(w))) {
+        totalLicenseCosts += kupValue;
       }
     }
   });
@@ -477,6 +488,19 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
   const currentRatioToLimit = Math.min(100, (simulatedRevenueTotal / EUR_LIMIT_PLN) * 100);
   const isApproachingLimit = simulatedRevenueTotal > EUR_LIMIT_PLN * 0.75;
 
+  // --- ADVANCED WORLD-CLASS FINANCIAL METRICS ---
+  const monthsActive = Math.max(1, uniqueMonthsWithCosts);
+  const annualizedRevenue = (actualRevenueYTD / monthsActive) * 12;
+  const ebitdaEstimated = simulatedIncomeTotal; // proxy for EBITDA before D&A
+  const ebitdaMargin = simulatedRevenueTotal > 0 ? (ebitdaEstimated / simulatedRevenueTotal) * 100 : 0;
+  
+  const topClientShare = (revenueContractorsArray.length > 0 && totalRevenueForShare > 0)
+    ? (revenueContractorsArray[0].value / totalRevenueForShare) * 100 
+    : 0;
+  const isHighConcentrationRisk = topClientShare > 40;
+
+  const avgMonthlyBurnRate = actualCostYTD / monthsActive;
+
   return (
     <div className="space-y-6 animate-fade-in" id="mckinsey-dashboard-pane">
       
@@ -493,27 +517,135 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
               Prognoza na koniec roku podatkowego {settings.rokPodatkowy}
             </h2>
             <p className="text-xs text-slate-300 font-sans leading-relaxed">
-              Analiza "What-if" symulująca roczny rozrachunek z Urzędem Skarbowym (deklaracja CIT-8) na podstawie zaksięgowanych transakcji YTD, suwaków koniunkturalnych oraz planowanych roboczych pozycji słownikowych.
+              Analiza poziomu korporacyjnego symulująca roczny rozrachunek (CIT-8) na bazie wskaźników EBITDA, Burn-Rate i koncentracji ryzyka. Zawiera interaktywne suwaki koniunkturalne ("What-if") i planowanie strategiczne wariantów przychodowo-kosztowych.
             </p>
           </div>
 
-          <div className="flex flex-wrap lg:flex-col items-stretch gap-3 shrink-0 text-xs">
+          <div className="flex flex-col sm:flex-row lg:flex-col items-stretch gap-3 shrink-0 text-xs">
             <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 min-w-[170px] space-y-1">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Opłacone zaliczki YTD</span>
-              <span className="text-sm font-black font-mono text-indigo-300 block leading-none">{formatPLN(totalPaidAdvancesYTD)}</span>
+              <span className="text-sm font-black font-mono text-slate-300 block leading-none">{formatPLN(totalPaidAdvancesYTD)}</span>
               <span className="text-[9px] text-slate-500 block">Suma zadeklarowanych zaliczek</span>
             </div>
 
+            <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 min-w-[170px] space-y-1">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Suma Przychodu YTD</span>
+              <span className="text-sm font-black font-mono text-slate-300 block leading-none">{formatPLN(simulatedRevenueTotal)}</span>
+              <span className="text-[9px] text-slate-500 block">Z uwzględnieniem symulacji</span>
+            </div>
+
             <div className="bg-indigo-950/50 p-4 rounded-xl border border-indigo-900/60 min-w-[170px] space-y-1">
-              <span className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest block font-sans">Suma Przychodu YTD</span>
-              <span className="text-sm font-black font-mono text-emerald-400 block leading-none">{formatPLN(simulatedRevenueTotal)}</span>
-              <span className="text-[9px] text-indigo-300/80 block">Z uwzględnieniem symulacji i planów</span>
+              <span className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest block font-sans">Prognozowany Zysk Netto</span>
+              <span className="text-sm font-black font-mono text-emerald-400 block leading-none">{formatPLN(simulatedNetProfit)}</span>
+              <span className="text-[9px] text-indigo-300/80 block">Czysty zysk do podziału</span>
             </div>
           </div>
         </div>
       </div>
 
-      {/* 2. Core Strategic Model Breakdown & Waterfall Simulator */}
+      {/* 2. World-Class Executive Financial KPIs */}
+      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+        {/* KPI 1: Skorygowana EBITDA & Margin */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs relative overflow-hidden group hover:border-indigo-200 transition-colors">
+          <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
+            <TrendingUp className="w-24 h-24 text-indigo-900" />
+          </div>
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block font-sans">EBITDA (Zysk Operacyjny)</span>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(ebitdaEstimated)}</span>
+          </div>
+          <div className="mt-2.5 text-xs font-medium font-sans flex items-center justify-between gap-1.5">
+            <span className={`px-2 py-0.5 rounded-full uppercase font-bold text-[9px] ${ebitdaMargin > 20 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
+              Marża: {ebitdaMargin.toFixed(1)}%
+            </span>
+            <span className="text-slate-400 text-[9px] uppercase font-bold tracking-wider">Benchmark: &gt;20%</span>
+          </div>
+        </div>
+
+        {/* KPI 2: ARR (Annualized Run Rate) */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs relative overflow-hidden group hover:border-indigo-200 transition-colors">
+          <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
+            <Layers className="w-24 h-24 text-emerald-900" />
+          </div>
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block font-sans">Prognozowany ARR</span>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(annualizedRevenue)}</span>
+          </div>
+          <div className="mt-2.5 text-[10px] font-bold uppercase tracking-wider font-sans text-slate-400 flex items-center gap-1.5 border-t border-slate-100 pt-2">
+            <Calendar className="w-3 h-3"/> {monthsActive} mc dynamiki r/r
+          </div>
+        </div>
+
+        {/* KPI 3: Koncentracja Klienta (Risk) */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs relative overflow-hidden group hover:border-rose-200 transition-colors">
+          <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
+            <AlertCircle className="w-24 h-24 text-rose-900" />
+          </div>
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block font-sans">Koncentracja Ryzyka</span>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className={`text-xl font-black font-mono tracking-tight ${isHighConcentrationRisk ? 'text-rose-600' : 'text-emerald-600'}`}>
+              {topClientShare.toFixed(1)}%
+            </span>
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">portfela</span>
+          </div>
+          <div className="mt-2.5 text-xs font-medium font-sans flex items-center justify-between gap-1.5 border-t border-slate-100 pt-2">
+            <span className="text-slate-400 text-[10px] truncate max-w-[120px] font-bold" title={revenueContractorsArray[0]?.name}>
+              {revenueContractorsArray[0]?.name || 'Brak danych'}
+            </span>
+            {isHighConcentrationRisk && (
+              <span className="text-[9px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded-full font-bold uppercase">
+                Ryzyko
+              </span>
+            )}
+          </div>
+        </div>
+
+        {/* KPI 4: Burn Rate */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs relative overflow-hidden group hover:border-indigo-200 transition-colors">
+          <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
+            <TrendingDown className="w-24 h-24 text-slate-900" />
+          </div>
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block font-sans">Średni Burn-Rate (OPEX)</span>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(avgMonthlyBurnRate)}</span>
+          </div>
+          <div className="mt-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider font-sans flex items-center gap-1 border-t border-slate-100 pt-2">
+             <Info className="w-3 h-3"/> Tempo ubywania gotówki
+          </div>
+        </div>
+
+        {/* KPI 5: Personnel Costs */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs relative overflow-hidden group hover:border-sky-200 transition-colors">
+          <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
+            <Users className="w-24 h-24 text-sky-900" />
+          </div>
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block font-sans">Koszty Osobowe (YTD)</span>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(totalPersonnelCosts)}</span>
+          </div>
+          <div className="mt-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider font-sans flex items-center justify-between gap-1 border-t border-slate-100 pt-2">
+             <span><Info className="w-3 h-3 inline mr-1"/> Zespół & Kontrakty</span>
+             {actualCostYTD > 0 && <span>{((totalPersonnelCosts / actualCostYTD) * 100).toFixed(1)}% OPEX</span>}
+          </div>
+        </div>
+
+        {/* KPI 6: License Costs */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs relative overflow-hidden group hover:border-purple-200 transition-colors">
+          <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
+            <AppWindow className="w-24 h-24 text-purple-900" />
+          </div>
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block font-sans">Koszty Licencji & SaaS (YTD)</span>
+          <div className="mt-1 flex items-baseline gap-2">
+            <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(totalLicenseCosts)}</span>
+          </div>
+          <div className="mt-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider font-sans flex items-center justify-between gap-1 border-t border-slate-100 pt-2">
+             <span><Info className="w-3 h-3 inline mr-1"/> Oprogramowanie</span>
+             {actualCostYTD > 0 && <span>{((totalLicenseCosts / actualCostYTD) * 100).toFixed(1)}% OPEX</span>}
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Core Strategic Model Breakdown & Waterfall Simulator */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
         
         {/* LEFT COLUMN: Waterfall Simulation Breakdown & Interactivity */}
@@ -1266,10 +1398,14 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
             {/* Smart Dynamic Insight on costs stability */}
             <div className="text-[11px] bg-slate-50 border border-slate-150 p-3.5 rounded-xl text-slate-600 leading-normal font-sans">
               <div className="font-bold text-slate-800 flex items-center gap-1 text-[11.5px] pb-1 border-b border-slate-200/50 mb-1.5 font-sans">
-                <span>📊</span> Podatkowy audyt kosztów:
+                <span>📊</span> Audyt Kosztów i Marży (EBITDA):
               </div>
               <p>
-                Twoje stałe koszty (Biuro, BIM/ZWCAD licenjcje, księgowość, ubezpieczenia sprawne) to poziom ok. <b>{formatPLN(avgMonthlyFixedCostValue)}</b>/mc. Kupuj sprzęt IT, work-station oraz rozliczaj branżystów konstrukcyjno-instalacyjnych w okresach zamykania dużych etapów u deweloperów.
+                Twoje stałe OPEX (Biuro, BIM, księgowość, ubezpieczenia) to <b>{formatPLN(avgMonthlyFixedCostValue)}</b>/mc. 
+                Przy obecnym poziomie przychodów generujesz marżę operacyjną <b>{ebitdaMargin.toFixed(1)}%</b>. 
+                {ebitdaMargin > 20 
+                  ? ' Świetny wynik na tle branży (>20% benchmark), spółka wysoce zyskowna.' 
+                  : ' Marża wymaga optymalizacji (spróbuj ciąć OPEX lub negocjować wyższe stawki za etapy projektowe).'}
               </p>
             </div>
 

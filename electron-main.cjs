@@ -51,12 +51,14 @@ function startExpressServer() {
 
   if (isProduction) {
     serverProcess = spawn('node', [serverPath], {
+      cwd: __dirname,
       env: { ...process.env, NODE_ENV: 'production' }
     });
   } else {
     // Development using tsx
     serverProcess = spawn('npx', ['tsx', serverPath], {
       shell: true,
+      cwd: __dirname,
       env: { ...process.env, NODE_ENV: 'development' }
     });
   }

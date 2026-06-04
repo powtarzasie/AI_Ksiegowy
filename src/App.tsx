@@ -15,6 +15,7 @@ import TransactionsManager from './components/TransactionsManager';
 import McKinseyDashboard from './components/McKinseyDashboard';
 import TaxAdvisorAssistant from './components/TaxAdvisorAssistant';
 import FinancialDashboard from './components/FinancialDashboard';
+import PdfExportModal from './components/PdfExportModal';
 import {
   Database,
   Layers,
@@ -419,6 +420,7 @@ export default function App() {
 
   const [activeTab, setActiveTab ] = useState<'kpis' | 'financial_dashboard' | 'yearly_executive' | 'registers' | 'settings_backup' | 'tax_advisor'>('kpis');
   const [importModalOpen, setImportModalOpen] = useState(false);
+  const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [isSavedIndicator, setIsSavedIndicator] = useState(false);
   const [isDiskSaved, setIsDiskSaved] = useState(false);
   const [showHelper, setShowHelper] = useState(false);
@@ -715,11 +717,19 @@ export default function App() {
                 </span>
                 <button
                   onClick={() => setImportModalOpen(true)}
-                  className="px-3 py-1 text-xs font-semibold text-slate-600 hover:text-indigo-600 flex items-center gap-1.5 transition-colors cursor-pointer"
+                  className="px-3 py-1 text-xs font-semibold text-slate-600 hover:text-indigo-600 flex items-center gap-1.5 transition-colors cursor-pointer border-r border-slate-200 pr-2"
                   id="header-import-excel-btn"
                 >
                   <FileSpreadsheet className="w-3.5 h-3.5" />
                   Importuj Excel
+                </button>
+                <button
+                  onClick={() => setIsPdfModalOpen(true)}
+                  className="px-3 py-1 text-xs font-semibold text-slate-600 hover:text-indigo-600 flex items-center gap-1.5 transition-colors cursor-pointer pl-1"
+                  id="header-export-pdf-btn"
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  Eksportuj PDF
                 </button>
               </div>
             </div>
@@ -957,6 +967,15 @@ export default function App() {
           state={state}
           onClose={() => setImportModalOpen(false)}
           onImportCompleted={handleExcelImportCompleted}
+        />
+      )}
+
+      {/* PDF Export Options Modal */}
+      {isPdfModalOpen && (
+        <PdfExportModal
+          state={state}
+          activeTab={activeTab}
+          onClose={() => setIsPdfModalOpen(false)}
         />
       )}
 

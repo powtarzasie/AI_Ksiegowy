@@ -1,6 +1,5 @@
 import express from 'express';
 import path from 'path';
-import { fileURLToPath } from 'url';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
@@ -8,8 +7,6 @@ import os from 'os';
 import fs from 'fs';
 
 dotenv.config();
-
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const CONFIG_DIR = path.join(os.homedir(), '.symulator_podatkow');
 const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
