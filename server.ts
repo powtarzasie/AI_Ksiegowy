@@ -5,6 +5,7 @@ import { GoogleGenAI, Type } from '@google/genai';
 import dotenv from 'dotenv';
 import os from 'os';
 import fs from 'fs';
+import { exec } from 'child_process';
 
 dotenv.config();
 
@@ -25,6 +26,49 @@ function getDbPath(): string {
   }
   return path.join(CONFIG_DIR, 'baza_danych.json');
 }
+
+function getBackupsDir(): string {
+  const dbPath = getDbPath();
+  return path.join(path.dirname(dbPath), 'backups');
+}
+
+function createBackup(): string | null {
+  const dbPath = getDbPath();
+  if (!fs.existsSync(dbPath)) return null;
+
+  const backupsDir = getBackupsDir();
+  if (!fs.existsSync(backupsDir)) {
+    fs.mkdirSync(backupsDir, { recursive: true });
+  }
+
+  const now = new Date();
+  const pad = (n: number) => n.toString().padStart(2, '0');
+  const dStr = `${now.getFullYear()}-${pad(now.getMonth()+1)}-${pad(now.getDate())}_${pad(now.getHours())}-${pad(now.getMinutes())}-${pad(now.getSeconds())}`;
+  
+  const backupFileName = `baza_danych_${dStr}.json`;
+  const backupPath = path.join(backupsDir, backupFileName);
+  
+  fs.copyFileSync(dbPath, backupPath);
+
+  const files = fs.readdirSync(backupsDir).filter(f => f.startsWith('baza_danych_') && f.endsWith('.json'));
+  files.sort((a, b) => {
+    const statA = fs.statSync(path.join(backupsDir, a));
+    const statB = fs.statSync(path.join(backupsDir, b));
+    return statB.mtime.getTime() - statA.mtime.getTime();
+  });
+
+  if (files.length > 15) {
+    for (let i = 15; i < files.length; i++) {
+      try {
+        fs.unlinkSync(path.join(backupsDir, files[i]));
+      } catch(e) {}
+    }
+  }
+
+  return backupFileName;
+}
+
+let initialBackupCreated = false;
 
 function setDbPath(newPath: string) {
   try {
@@ -57,15 +101,61 @@ async function startServer() {
     try {
       const currentPath = getDbPath();
       const defaultPath = path.join(os.homedir(), '.symulator_podatkow', 'baza_danych.json');
+      const exists = fs.existsSync(currentPath);
+      let size: number | null = null;
+      let modified: string | null = null;
+      if (exists) {
+        try {
+          const stats = fs.statSync(currentPath);
+          size = stats.size;
+          modified = stats.mtime.toISOString();
+        } catch (e) {
+          console.error('Error reading stats:', e);
+        }
+      }
       return res.json({
         status: 'success',
         dbPath: currentPath,
         defaultPath: defaultPath,
-        exists: fs.existsSync(currentPath)
+        exists: exists,
+        size: size,
+        modified: modified
       });
     } catch (err: any) {
       console.error('Error getting database config:', err);
       return res.status(500).json({ error: err.message });
+    }
+  });
+
+  app.delete('/api/db', (req, res) => {
+    try {
+      const p = getDbPath();
+      if (fs.existsSync(p)) {
+        fs.unlinkSync(p);
+      }
+      return res.json({ status: 'success', path: p });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/db/reveal', (req, res) => {
+    try {
+      const p = getDbPath();
+      const dir = path.dirname(p);
+      if (!fs.existsSync(dir)) {
+        fs.mkdirSync(dir, { recursive: true });
+      }
+      if (process.platform === 'win32') {
+        exec(fs.existsSync(p) ? 'explorer.exe /select,"' + p + '"' : 'explorer.exe "' + dir + '"');
+      } else if (process.platform === 'darwin') {
+        exec('open -R "' + p + '"');
+      } else {
+        exec('xdg-open "' + dir + '"');
+      }
+      return res.json({ status: 'success', path: p });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
     }
   });
 
@@ -122,11 +212,74 @@ async function startServer() {
     }
   });
 
+  // Backup Management Endpoints
+  app.get('/api/db/backups', (req, res) => {
+    try {
+      const backupsDir = getBackupsDir();
+      if (!fs.existsSync(backupsDir)) {
+         return res.json({ status: 'success', backups: [] });
+      }
+      const files = fs.readdirSync(backupsDir).filter(f => f.startsWith('baza_danych_') && f.endsWith('.json'));
+      const backups = files.map(file => {
+        const stats = fs.statSync(path.join(backupsDir, file));
+        return {
+          name: file,
+          date: stats.mtime.toISOString(),
+          size: stats.size
+        };
+      });
+      backups.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+      return res.json({ status: 'success', backups });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/db/backup', (req, res) => {
+    try {
+      const fileName = createBackup();
+      if (!fileName) return res.status(400).json({ error: 'Baza danych nie istnieje, nie można utworzyć kopii.' });
+      return res.json({ status: 'success', message: 'Kopia została utworzona.' });
+    } catch (e: any) {
+      return res.status(500).json({ error: e.message });
+    }
+  });
+
+  app.post('/api/db/restore', (req, res) => {
+    try {
+      const { file } = req.body;
+      if (!file || typeof file !== 'string' || file.includes('/') || file.includes('\\')) {
+        return res.status(400).json({ error: 'Nieprawidłowa nazwa pliku.' });
+      }
+      const backupsDir = getBackupsDir();
+      const backupPath = path.join(backupsDir, file);
+      if (!fs.existsSync(backupPath)) {
+        return res.status(404).json({ error: 'Plik kopii zapasowej nie istnieje.' });
+      }
+
+      const dbPath = getDbPath();
+      const tmpPath = dbPath + '.tmp';
+      
+      fs.copyFileSync(backupPath, tmpPath);
+      fs.renameSync(tmpPath, dbPath);
+
+      const data = JSON.parse(fs.readFileSync(dbPath, 'utf8'));
+      return res.json({ status: 'success', data });
+      
+    } catch (e: any) {
+       return res.status(500).json({ error: e.message });
+    }
+  });
+
   // Local Database Persistence Endpoints for Desktop Mode
   app.get('/api/db/load', async (req, res) => {
     try {
       const dbPath = getDbPath();
       if (fs.existsSync(dbPath)) {
+        if (!initialBackupCreated) {
+          createBackup();
+          initialBackupCreated = true;
+        }
         const rawJson = fs.readFileSync(dbPath, 'utf8');
         const parsed = JSON.parse(rawJson);
         return res.json({ status: 'success', data: parsed });
@@ -146,144 +299,13 @@ async function startServer() {
       if (!fs.existsSync(dbDir)) {
         fs.mkdirSync(dbDir, { recursive: true });
       }
-      fs.writeFileSync(dbPath, JSON.stringify(req.body, null, 2), 'utf8');
+      const tmpPath = dbPath + '.tmp';
+      fs.writeFileSync(tmpPath, JSON.stringify(req.body, null, 2), 'utf8');
+      fs.renameSync(tmpPath, dbPath);
       return res.json({ status: 'success', path: dbPath });
     } catch (err: any) {
       console.error('Error saving database:', err);
       return res.status(500).json({ error: err.message });
-    }
-  });
-
-  // AI McKinsey Audit API Endpoint
-  app.post('/api/gemini/analyze', async (req, res) => {
-    try {
-      const { sales = [], purchases = [], settings = {} } = req.body;
-
-      if (!process.env.GEMINI_API_KEY) {
-        // Fallback Heuristics Model when API Key is missing - ensures graceful, uninterrupted service
-        const fallbackResponse = generateHeuristicAnalysis(sales, purchases, settings);
-        return res.json({
-          status: 'fallback',
-          message: 'Analityka wykończona algorytmem lokalnym. Aby odblokować pełną moc AI, wprowadź klucz GEMINI_API_KEY w panelu Settings > Secrets.',
-          data: fallbackResponse
-        });
-      }
-
-      // Initialize official GenAI SDK as per gemini-api guidelines
-      const ai = new GoogleGenAI({
-        apiKey: process.env.GEMINI_API_KEY,
-        httpOptions: {
-          headers: {
-            'User-Agent': 'aistudio-build',
-          }
-        }
-      });
-
-      // Prepare transactions digest for prompt optimization (reduce token weight)
-      const salesDigest = sales.map((s: any) => ({
-        data: s.data,
-        numer: s.numerFaktury,
-        kontrahent: s.kontrahent || 'Nienazwany',
-        netto: s.netto,
-        czyCIT: s.czyCIT
-      }));
-
-      const purchasesDigest = purchases.map((p: any) => ({
-        data: p.data,
-        numer: p.numerFaktury,
-        dostawca: p.dostawca || 'Nienazwany',
-        kategoria: p.kategoria || 'Ogólne',
-        netto: p.netto,
-        kosztCIT: p.kosztCIT,
-        odliczenieVat: p.odliczenieVat
-      }));
-
-      const systemInstruction = `Jesteś ekspertem McKinsey & Company oraz dyrektorem finansowym (CFO) specjalizującym się w optymalizacji polskiego podatku CIT, analizie wąskich gardeł, marżowości oraz strukturyzacji modeli biznesowych.
-Przeanalizuj listę transakcji sprzedaży (przychody) i zakupów (koszty) spółki z o.o. przeprowadź pełne badanie i generuj strukturyzowany raport McKinsey Matrix.
-
-Musisz przydzielić transakcje do syntetycznych kategorii oraz ocenić je według kryteriów macierzy McKinsey:
-1. Atrakcyjność segmentu rynkowego / strategiczna ważność (ocena 1-10)
-2. Pozycja konkurencyjna / rentowność (ocena 1-10)
-
-Dodatkowo zdefiniuj kluczowe przewagi (np. stabilność przychodowa, oszczędności, zdywersyfikowana baza klientów) oraz wąskie gardła (np. ryzyko koncentracji przychodów na jednym kliencie, wycieki marży przez nadmierne koszty transportu/paliwa/biurowe, brak kosztów KUP obniżających CIT).
-
-Odpowiedź musi być wyłącznie w formacie JSON zgodnym ze schematem podanym w schemacie odpowiedzi. Pisz w języku polskim.`;
-
-      const prompt = `Przeanalizuj następujące dane finansowe spółki:
-Nazwa spółki: ${settings.nazwaSpolki || 'Spółka z o.o.'}
-Stawka CIT: ${settings.stawkaCIT || 9}%
-Rok podatkowy: ${settings.rokPodatkowy || 2026}
-
-Dane sprzedaży (przychody):
-${JSON.stringify(salesDigest.slice(0, 50))}
-
-Dane zakupów (koszty):
-${JSON.stringify(purchasesDigest.slice(0, 50))}
-
-Wygeneruj kompletny audyt strategiczny McKinsey dla tych transakcji. Zasugeruj idealny podział na kategorie rynkowe (np. "Usługi IT", "Logistyka", "Koszty stałe operacyjne", "Licencje oprogramowania") i oceń je pod kątem McKinsey Matrix.`;
-
-      const response = await ai.models.generateContent({
-        model: 'gemini-3.5-flash',
-        contents: prompt,
-        config: {
-          systemInstruction: systemInstruction,
-          responseMimeType: 'application/json',
-          responseSchema: {
-            type: Type.OBJECT,
-            properties: {
-              summary: {
-                type: Type.STRING,
-                description: "Syntetyczny ekspercki opis stanu finansowego i optymalizacji CIT dla zarządu spółki."
-              },
-              advantages: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: "Lista 3-4 kluczowych zalet i mocnych stron modelu biznesowego spółki."
-              },
-              bottlenecks: {
-                type: Type.ARRAY,
-                items: { type: Type.STRING },
-                description: "Lista 3-4 wąskich gardeł, barier rozwoju, ryzyk koncentracyjnych lub wycieków CIT."
-              },
-              mckinseyMatrix: {
-                type: Type.ARRAY,
-                description: "Lista zidentyfikowanych kategorii przychodów i kosztów z ich pozycją rynkową i radą strategiczną.",
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    name: { type: Type.STRING, description: "Nazwa kategorii lub grupy kontrahentów." },
-                    quadrant: { type: Type.STRING, description: "Nazwa segmentu macierzy (np. Lider wzrostu, Segment do restrukturyzacji, Segment do obrony, Generatory gotówki)." },
-                    marketAttractivenessRating: { type: Type.INTEGER, description: "Atrakcyjność segmentu (skala 1-10)." },
-                    competitivePositionRating: { type: Type.INTEGER, description: "Pozycja spółki w tym segmencie / rentowność (skala 1-10)." },
-                    strategicGuidance: { type: Type.STRING, description: "Krótka (1 zdanie) rekomendacja strategiczna od McKinsey dla tej kategorii." },
-                    type: { type: Type.STRING, description: "Czy jest to przychód ('przychod') czy koszt ('koszt')." }
-                  },
-                  required: ["name", "quadrant", "marketAttractivenessRating", "competitivePositionRating", "strategicGuidance", "type"]
-                }
-              }
-            },
-            required: ["summary", "advantages", "bottlenecks", "mckinseyMatrix"]
-          }
-        }
-      });
-
-      const responseText = response.text || '';
-      const parsedData = JSON.parse(responseText.trim());
-
-      return res.json({
-        status: 'success',
-        data: parsedData
-      });
-
-    } catch (error: any) {
-      console.error('Error calling Gemini API:', error);
-      // Fallback in case of server execution issues to keep the operational loop flawless
-      const dummyResponse = generateHeuristicAnalysis(req.body.sales || [], req.body.purchases || [], req.body.settings || {});
-      return res.json({
-        status: 'error_fallback',
-        message: `Wystąpił błąd podczas komunikacji z AI: ${error.message || error}. Zastąpiono analizą algorytmiczną.`,
-        data: dummyResponse
-      });
     }
   });
 
@@ -331,6 +353,9 @@ Zawsze podaj:
 5. "justification" (Wyjątkowo precyzyjne, urzędowe, profesjonalne uzasadnienie prawne, powołujące się na przepisy np. art. 15 ust. 1 ustawy o CIT. Musi brzmieć profesjonalnie, zawierać solidne logiczne powiązanie z PKD architekta - projektowanie, inwentaryzacje, nadzór techniczny, wizualizacje. Użyj argumentów, że koszt ten służy zabezpieczeniu i zachowaniu źródła przychodów).
 6. "accountingAdvice" (Konkretna, praktyczna instrukcja jak rozmawiać z księgową i co powiedzieć. Podaj listę dokładnych argumentów i wymogów formalnych, np. 'Jak oznaczyć odzież logo', 'Co wpisać na odwrocie faktury z restauracji', 'Jak udokumentować cel spotkania (np. zapisem w kalendarzu czy mailem do klienta)', 'O co poprosić biuro rachunkowe').
 7. "krsRelevance" (Wykazanie spójności z PKD 71.11.Z oraz KRS podanym przez użytkownika).
+8. "knowledgeCutoff" (Miesiąc i rok odcięcia Twojej bazy wiedzy podatkowej bez wyszukiwarki internetowej, np. 'styczeń 2025 r.' lub 'październik 2024 r.').
+
+BEZWZGLĘDNA ZASADA: Nie korzystaj z wyszukiwarki Google i nie próbuj przeszukiwać sieci na żywo. Bazuj wyłącznie na wbudowanej wiedzy modelu i zadeklaruj poprawną przybliżoną datę odcięcia w polu "knowledgeCutoff".
 
 Odpowiedź musi być wyłącznie w formacie JSON zgodnym z podanym schematem. Pisz profesjonalnym, urzędowym, ale jasnym językiem polskim.`;
 
@@ -363,7 +388,7 @@ Oceniaj z perspektywy najnowszych interpretacji dyrektora KIS (Krajowej Informac
 
         const modelName = llmConfig.model || (provider === 'openai' ? 'gpt-4o-mini' : 'llama3');
 
-        const extendedPrompt = `${prompt}\n\nOdpowiedz WYŁĄCZNIE w formacie JSON o schemacie:\n{\n  "light": "green" lub "yellow" lub "red",\n  "category": "kategoria po polsku",\n  "vatDeductibility": "opis odliczenia VAT",\n  "citDeductibility": "opis odliczenia CIT",\n  "justification": "szczegółowe uzasadnienie prawne Art.15 CIT",\n  "accountingAdvice": "praktyczna pomoc dla księgowej",\n  "krsRelevance": "zbieżność z PKD architekta"\n}\nNie dodawaj żadnych cytatów, wstępów ani znaczników markdown \`\`\`json. Zwróć sam surowy obiekt JSON.`;
+        const extendedPrompt = `${prompt}\n\nOdpowiedz WYŁĄCZNIE w formacie JSON o schemacie:\n{\n  "light": "green" lub "yellow" lub "red",\n  "category": "kategoria po polsku",\n  "vatDeductibility": "opis odliczenia VAT",\n  "citDeductibility": "opis odliczenia CIT",\n  "justification": "szczegółowe uzasadnienie prawne Art.15 CIT",\n  "accountingAdvice": "praktyczna pomoc dla księgowej",\n  "krsRelevance": "zbieżność z PKD architekta",\n  "knowledgeCutoff": "miesiąc i rok odcięcia Twojej wiedzy, np. 'styczeń 2025 r.'"\n}\nNie dodawaj żadnych cytatów, wstępów ani znaczników markdown \`\`\`json. Zwróć sam surowy obiekt JSON.`;
 
         const response = await fetch(url, {
           method: 'POST',
@@ -417,7 +442,7 @@ Oceniaj z perspektywy najnowszych interpretacji dyrektora KIS (Krajowej Informac
             max_tokens: 3000,
             system: systemInstruction,
             messages: [
-              { role: 'user', content: `${prompt}\n\nOdpowiedz WYŁĄCZNIE w formacie JSON o schemacie:\n{\n  "light": "green" lub "yellow" lub "red",\n  "category": "kategoria po polsku",\n  "vatDeductibility": "opis odliczenia VAT",\n  "citDeductibility": "opis odliczenia CIT",\n  "justification": "szczegółowe uzasadnienie prawne Art.15 CIT",\n  "accountingAdvice": "praktyczna pomoc dla księgowej",\n  "krsRelevance": "zbieżność z PKD architekta"\n}` }
+              { role: 'user', content: `${prompt}\n\nOdpowiedz WYŁĄCZNIE w formacie JSON o schemacie:\n{\n  "light": "green" lub "yellow" lub "red",\n  "category": "kategoria po polsku",\n  "vatDeductibility": "opis odliczenia VAT",\n  "citDeductibility": "opis odliczenia CIT",\n  "justification": "szczegółowe uzasadnienie prawne Art.15 CIT",\n  "accountingAdvice": "praktyczna pomoc dla księgowej",\n  "krsRelevance": "zbieżność z PKD architekta",\n  "knowledgeCutoff": "miesiąc i rok odcięcia Twojej wiedzy, np. 'styczeń 2025 r.'"\n}` }
             ]
           })
         });
@@ -480,9 +505,10 @@ Oceniaj z perspektywy najnowszych interpretacji dyrektora KIS (Krajowej Informac
               citDeductibility: { type: Type.STRING, description: "Jak księgujemy w CIT (100% KUP, 75% KUP, wyłączony z KUP itp.)." },
               justification: { type: Type.STRING, description: "Argument prawno-podatkowy wykazujący celowość kosztu, powołujący się na art. 15 ust. 1 ustawy o CIT." },
               accountingAdvice: { type: Type.STRING, description: "Instrukcja rozmowy i weryfikacji z księgową. Wskazówki dokumentacyjne." },
-              krsRelevance: { type: Type.STRING, description: "Powiązanie kosztu z profilem architektonicznym z KRS użytkownika." }
+              krsRelevance: { type: Type.STRING, description: "Powiązanie kosztu z profilem architektonicznym z KRS użytkownika." },
+              knowledgeCutoff: { type: Type.STRING, description: "Miesiąc i rok odcięcia wiedzy modelu (np. 'październik 2024 r.')." }
             },
-            required: ["light", "category", "vatDeductibility", "citDeductibility", "justification", "accountingAdvice", "krsRelevance"]
+            required: ["light", "category", "vatDeductibility", "citDeductibility", "justification", "accountingAdvice", "krsRelevance", "knowledgeCutoff"]
           }
         }
       });
@@ -521,125 +547,21 @@ Oceniaj z perspektywy najnowszych interpretacji dyrektora KIS (Krajowej Informac
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`[tax-today backend] Server active on port ${PORT}`);
+  app.listen(PORT, '127.0.0.1', () => {
+    console.log(`Server active on port 3000`);
   });
 }
 
-// Heuristic Strategic Fallback engine to guarantee 100% offline availability & stellar UI fidelity
-function generateHeuristicAnalysis(sales: any[], purchases: any[], settings: any) {
-  // Compute basic metrics
-  let totalSales = 0;
-  let totalCost = 0;
-  let totalKUP = 0;
 
-  const clientScores: { [key: string]: number } = {};
-  const costScores: { [key: string]: number } = {};
-
-  sales.forEach(s => {
-    if (s.czyCIT) {
-      totalSales += s.netto;
-      const clientName = s.kontrahent || 'Inny Kontrahent';
-      clientScores[clientName] = (clientScores[clientName] || 0) + s.netto;
-    }
-  });
-
-  purchases.forEach(p => {
-    totalCost += p.netto;
-    if (p.kosztCIT) {
-      totalKUP += p.netto;
-    }
-    const cat = p.kategoria || 'Ogólne';
-    costScores[cat] = (costScores[cat] || 0) + p.netto;
-  });
-
-  // Client concentration check
-  const sortedClients = Object.entries(clientScores).sort((a, b) => b[1] - a[1]);
-  const sortedCosts = Object.entries(costScores).sort((a, b) => b[1] - a[1]);
-
-  const maxClientName = sortedClients[0]?.[0] || 'Inne przychody';
-  const maxClientVal = sortedClients[0]?.[1] || 0;
-  const clientConcentrationRatio = totalSales > 0 ? (maxClientVal / totalSales) * 100 : 0;
-
-  // Build high quality strategic observations
-  const advantages = [
-    `Stabilne ustrukturyzowane źródła przychodu: Łączne fakturowanie netto w badanej próbie wynosi ${totalSales.toLocaleString('pl-PL')} zł.`,
-    `Zarządzanie odliczeniami podatkowymi: Spółka efektywnie księguje koszty jako KUP (${totalKUP.toLocaleString('pl-PL')} zł z ${totalCost.toLocaleString('pl-PL')} zł wszystkich kosztów), obniżając podstawę opodatkowania CIT.`
-  ];
-
-  if (settings.stawkaCIT === 9) {
-    advantages.push('Preferencyjna stawka 9% CIT: Model zapewnia zgodność z warunkami małego podatnika (rocznie poniżej 2M EUR).');
-  } else {
-    advantages.push('Standardowy CIT 19%: Silne i dojrzałe ramy korporacyjne bez ograniczeń co do skali działalności.');
-  }
-
-  const bottlenecks = [
-    totalKUP === 0 
-      ? 'Brak generowania kosztów KUP: Spółka nie posiada żadnych kosztów uzyskania przychodu, co powoduje bardzo wysoką, niepotrzebną ekspozycję na podatek CIT.' 
-      : 'Eksploatacja bazy kosztowej: Struktura kosztów wskazuje na znaczny udział kategorii o niskiej wartości dodanej, co ogranicza dźwignię operacyjną.'
-  ];
-
-  if (clientConcentrationRatio > 40) {
-    bottlenecks.push(`Ryzyko skrajnej koncentracji przychodów: Kontrahent "${maxClientName}" generuje aż ${clientConcentrationRatio.toFixed(1)}% Twoich całościowych przychodów. Utrata tego kontraktu zdestabilizuje płynność spółki.`);
-  } else {
-    bottlenecks.push('Ryzyko dywersyfikacji: Niska bariera wejścia i rozproszony portfel klientów mogą generować dodatkowe koszty logistyczne i administracyjne.');
-  }
-
-  if (totalSales > 0 && (totalCost / totalSales) > 0.85) {
-    bottlenecks.push('Bardzo wysoki wskaźnik kosztów do przychodów (CIR > 85%): Wysokie stałe wydatki operacyjne znacząco zawężają marżę operacyjną spółki.');
-  }
-
-  // Populate dynamic McKinsey Matrix items
-  const mckinseyMatrix: any[] = [];
-
-  // Clients mappings
-  sortedClients.forEach(([name, val]) => {
-    const isMajor = val > totalSales * 0.25;
-    const marketAttractiveness = isMajor ? 8 : 6;
-    const competitivePosition = isMajor ? 9 : 5;
-    
-    mckinseyMatrix.push({
-      name: `Klienci: ${name}`,
-      quadrant: isMajor ? 'Główny Lider wzrostu' : 'Segment do selektywnej obrony',
-      marketAttractivenessRating: marketAttractiveness,
-      competitivePositionRating: competitivePosition,
-      strategicGuidance: isMajor 
-        ? 'Najbardziej wartościowy kontrahent. Zapewnij długookresowy kontrakt i program lojalnościowy.' 
-        : 'Wspieraj relację, lecz unikaj dedytkowania dodatkowych stałych kosztów obsługi.',
-      type: 'przychod'
-    });
-  });
-
-  // Adding Costs categories mappings
-  sortedCosts.forEach(([name, val]) => {
-    const isMajorCost = val > totalCost * 0.3;
-    const marketAttractiveness = isMajorCost ? 4 : 5;
-    const competitivePosition = isMajorCost ? 3 : 6;
-
-    mckinseyMatrix.push({
-      name: `Koszty: ${name}`,
-      quadrant: isMajorCost ? 'Rygorystyczna optymalizacja' : 'Segment pod stałą kontrolą',
-      marketAttractivenessRating: marketAttractiveness,
-      competitivePositionRating: competitivePosition,
-      strategicGuidance: isMajorCost 
-        ? 'Wysoki poziom kosztów podkopuje zysk. Wymagana renegocjacja umów ramowych.' 
-        : 'Poziom akceptowalny, prowadź okresowy monitoring cen rynkowych alternatywnych dostawców.',
-      type: 'koszt'
-    });
-  });
-
-  // Fallback summary
-  const summary = `Przegląd finansowy wskazuje na stabilne zręby rynkowe z obrotami rzędu ${totalSales.toLocaleString('pl-PL')} zł netto. Poziom optymalizacji CIT przez koszty uzyskania przychodów wynosi ${totalSales > 0 ? ((totalKUP / totalSales) * 100).toFixed(1) : '0'}% obrotu. McKinsey zaleca skoncentrowanie się na dywersyfikacji portfela przychodowego w celu złagodzenia ryzyka rynkowego, a także na wdrożeniu surowej dyscypliny w dużych kategoriach kosztów operacyjnych.`;
-
+function generateHeuristicTaxAdviserOffset(query: string, krs: string) {
+  const result = generateHeuristicTaxAdviserOffsetRaw(query, krs);
   return {
-    summary,
-    advantages,
-    bottlenecks,
-    mckinseyMatrix
+    ...result,
+    knowledgeCutoff: 'styczeń 2025 r.'
   };
 }
 
-function generateHeuristicTaxAdviserOffset(query: string, krs: string) {
+function generateHeuristicTaxAdviserOffsetRaw(query: string, krs: string) {
   const normalized = query.toLowerCase().trim();
   
   if (normalized.includes('staging') || normalized.includes('rekwizyt') || normalized.includes('dekorac') || normalized.includes('wazon') || normalized.includes('narzut') || normalized.includes('pościel') || normalized.includes('obraz') || normalized.includes('sesja') || normalized.includes('zdjęc') || normalized.includes('fotograf') || normalized.includes('video') || normalized.includes('film') || normalized.includes('aparat')) {

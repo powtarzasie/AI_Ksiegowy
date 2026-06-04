@@ -88,15 +88,15 @@ function createWindow() {
     }
   });
 
-  // Since we run local Express on port 3000, we ALWAYS load http://localhost:3000
+  // Since we run local Express on port 3000, we ALWAYS load http://127.0.0.1:3000
   // even in production, because our Express server serves the static React build there!
   // This guarantees that API endpoints and web app remain 100% synchronized!
   setTimeout(() => {
-    mainWindow.loadURL('http://localhost:3000')
+    mainWindow.loadURL('http://127.0.0.1:3000')
       .catch((err) => {
         console.log('Local express server is booting up, retrying connection...');
         setTimeout(() => {
-          mainWindow.loadURL('http://localhost:3000').catch(e => {
+          mainWindow.loadURL('http://127.0.0.1:3000').catch(e => {
             console.error('Failed to link to Express on Port 3000:', e);
           });
         }, 1500);

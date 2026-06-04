@@ -34,6 +34,7 @@ interface TaxQualificationResult {
   justification: string;
   accountingAdvice: string;
   krsRelevance: string;
+  knowledgeCutoff?: string;
 }
 
 interface HistoryItem {
@@ -110,6 +111,22 @@ export default function TaxAdvisorAssistant({ state }: TaxAdvisorAssistantProps)
   const [copiedSection, setCopiedSection] = useState<string | null>(null);
   const [explanationQuery, setExplanationQuery] = useState<string>('');
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
+  const [showClearHistoryConfirm, setShowClearHistoryConfirm] = useState(false);
+
+  const isApiKeyMissingOrPlaceholder = (() => {
+    const config = state.llmConfig;
+    if (!config) return true;
+    if (config.provider === 'ollama' || config.provider === 'lmstudio') return false;
+    const key = config.apiKey || '';
+    return !key || 
+      key.startsWith('AIzaSyYourKey') || 
+      key.includes('PLACEHOLDER') || 
+      key.trim() === '' || 
+      key.includes('wprowadź') ||
+      key.includes('TwójKey') ||
+      key.includes('...') ||
+      key.length < 10;
+  })();
 
   const generateEmailBody = () => {
     if (!currentResult) return '';
@@ -164,6 +181,99 @@ Będę niezmiernie wdzięczny/wdzięczna za informację zwrotną oraz jednoznacz
 
 Z wyrazami szacunku,
 [Zarząd Spółki / Twój Podpis]`;
+  };
+
+  const generateExternalPromptBody = (): string => {
+    const targetQuery = explanationQuery || searchQuery || '[Wpisz lub wybierz wydatek]';
+    const localToday = new Date().toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' });
+    const cutoffDate = currentResult?.knowledgeCutoff || 'styczeń 2025 r.';
+
+    if (currentResult) {
+      const riskText = currentResult.light === 'green' 
+        ? '🟢 ZIELONE ŚWIATŁO (Niskie ryzyko)' 
+        : currentResult.light === 'yellow' 
+          ? '🟡 ŻÓŁTE ŚWIATŁO (Średnie ryzyko / wymagane warunki)' 
+          : '🔴 CZERWONE ŚWIATŁO (Wysokie ryzyko / nierekomendowany)';
+
+      return `### ⚖️ ZLECENIE DLA DORADCY PODATKOWEGO GOOGLE SEARCH AI
+
+Działasz jako licencjonowany doradca podatkowy w Polsce wyposażony w aktywne narzędzie wyszukiwania informacji w sieci na żywo (Google Search). Posiadasz najnowsze dane o orzecznictwie i interpretacjach fiskusa.
+
+#### 🏢 PROFIL MOJEJ FIRMY
+* **Forma prawna:** Spółka z o.o.
+* **Branża:** Pracownia projektowa i architektoniczna
+* **Główne PKD:** \`71.11.Z\` - Działalność w zakresie architektury
+
+---
+
+#### 🔍 PLANOWANY WYDATEK DO WERYFIKACJI
+* **Wydatek:** "${targetQuery}"
+* **Cel:** Ustalenie możliwości ujęcia wydatku w kosztach uzyskania przychodu (KUP) dla podatku CIT (zgodnie z art. 15 ust. 1 ustawy o CIT) oraz prawa do odliczenia podatku naliczonego VAT.
+
+---
+
+#### 📜 KWALIFIKACJA WYJŚCIOWA (Asystent Lokalny)
+Wstępny audyt algorytmiczny (baza wiedzy zamrożona na dzień odcięcia: **${cutoffDate}**) sklasyfikował ten wydatek tak:
+* **Sugerowany Status:** ${riskText}
+* **Sugerowana Kategoria:** \`${currentResult.category}\`
+* **Odliczenie VAT (S-ka z o.o.):** ${currentResult.vatDeductibility}
+* **Odliczenie CIT (KUP):** ${currentResult.citDeductibility}
+* **Wstępne Uzasadnienie Celowości:**
+> "${currentResult.justification}"
+
+---
+
+#### 📅 ZADANIE DLA CIEBIE (Wyszukiwanie Google Search)
+Bieżąca data dzisiejsza to: **${localToday} r.**
+Przeszukaj internet za pomocą wyszukiwarki internetowej i sprawdź, czy w okresie od **${cutoffDate}** do dziś (**${localToday} r.**) pojawiły się:
+
+1. **Interpretacje indywidualne Krajowej Informacji Skarbowej (KIS)** dotyczące dokładnie tego typu wydatków u architektów, biur projektowych lub inżynierskich.
+2. **Wyroki sądów administracyjnych (WSA, NSA)** wskazujące ewoluującą linię orzeczniczą.
+3. **Oficjalne objaśnienia** Ministerstwa Finansów lub nowelizacje ustaw rzutujące bezpośrednio na ten koszt.
+
+---
+
+#### 📝 FORMAT ODPOWIEDZI
+Ustrukturyzuj swoją odpowiedź przy użyciu przejrzystego formatowania Markdown:
+1. **Analiza zmian historycznych:** Czy od daty bazy wiedzy modelów (${cutoffDate}) nastąpiły zmiany na korzyść lub niekorzyść podatników? Podaj konkretne sygnatury interpretacji indywidualnych lub wyroków sadowych i ich daty.
+2. **Ostateczna rekomendacja bezpieczeństwa na dzień ${localToday} r.:** Czy koszt wciąż kwalifikuje się bezpiecznie, czy niesie za sobą nowe ryzyka podatkowe?
+3. **Zalecane procedury dowodowe:** Jak skutecznie opisać fakturę i jakie dowody zgromadzić, by obronić wydatek przy kontroli skarbowej.`;
+    } else {
+      // General prompt if there is no currentResult (e.g. offline/no API key)
+      return `### ⚖️ ZLECENIE DLA DORADCY PODATKOWEGO GOOGLE SEARCH AI (Badanie od Podstaw)
+
+Działasz jako licencjonowany doradca podatkowy w Polsce wyposażony w aktywne narzędzie wyszukiwania informacji w sieci na żywo (Google Search). Posiadasz najnowsze dane o orzecznictwie i interpretacjach fiskusa.
+
+#### 🏢 PROFIL MOJEJ FIRMY
+* **Forma prawna:** Spółka z o.o.
+* **Branża:** Pracownia projektowa i architektoniczna
+* **Główne PKD:** \`71.11.Z\` - Działalność w zakresie architektury
+
+---
+
+#### 🔍 PLANOWANY WYDATEK DO BADANIA
+* **Przedmiot weryfikacji:** "${targetQuery}"
+* **Cel:** Przeprowadzenie pełnego merytorycznego badania celowości wydatku pod kątem art. 15 ust. 1 ustawy o CIT oraz prawa do odliczenia podatku VAT w Spółce z o.o. w bieżącym roku podatkowym.
+
+---
+
+#### 📅 ZADANIE DLA CIEBIE (Wyszukiwanie Google Search na dzień ${localToday} r.)
+Korzystając z dostępu do internetu, znajdź aktualny stan prawny na dziś (**${localToday} r.**) w Polsce:
+
+1. **Interpretacje indywidualne Krajowej Informacji Skarbowej (KIS)** dotyczące takiego wydatku u architektów, projektantów, inżynierów lub ogólnych przedsiębiorstw usługowych.
+2. **Najnowsze wyroki sądów administracyjnych (WSA, NSA)** określające aktualne podejście fiskusa.
+3. **Ograniczenia lub unormowania szczególne** rzutujące na odliczalność tego wydatku (np. kwestie reprezentacji, odzieży roboczej/reklamowej, limitów samochodowych czy gastronomii).
+
+---
+
+#### 📝 REKOMENDOWANY FORMAT ODPOWIEDZI (Użyj Markdown)
+Ustrukturyzuj opinię podatkową i zweryfikuj wydatek w następujących sekcjach:
+1. **Ocena bezpieczeństwa (Światła ostrzegawcze):** Przypisz wydatek do poziomu ryzyka: Zielony (bezpieczny), Żółty (warunkowy, średnie ryzyko) lub Czerwony (wysokie ryzyko odrzucenia).
+2. **Kwalifikacja Podatków (CIT i VAT):** Jaki procent VAT można odliczyć oraz czy wydatek stanowi Koszt Uzyskania Przychodu (KUP) w CIT i na jakich zasadach?
+3. **Rzetelne Uzasadnienie Prawne:** Przygotuj profesjonalny argument celowości biznesowej (powołując się bezpośrednio na orzecznictwo i cel działalności architekta - pozyskiwanie klientów, inwentaryzacje, profesjonalny wizerunek).
+4. **Najnowsze Orzecznictwo i Pisma KIS:** Podaj konkretne przykłady interpretacji wraz z sygnaturami z ostatnich lat.
+5. **Skrzynka dowodowa:** Jakie procedury i dowody (zdjęcia, wpisy kontraktowe, opatrzenie logiem firmy) są niezbędne, by księgowa mogła bezpiecznie ująć ten koszt w księgach operacyjnych spółki.`;
+    }
   };
 
   useEffect(() => {
@@ -223,10 +333,13 @@ Z wyrazami szacunku,
   }, [loading]);
 
   const handleClearHistory = () => {
-    if (window.confirm('Czy na pewno chcesz wyczyścić historię zapytań o koszty?')) {
-      saveHistory([]);
-      setCurrentResult(null);
-    }
+    setShowClearHistoryConfirm(true);
+  };
+
+  const executeClearHistory = () => {
+    setShowClearHistoryConfirm(false);
+    saveHistory([]);
+    setCurrentResult(null);
   };
 
   const handleCheckExpense = async (queryText: string, isFromExample = false) => {
@@ -375,8 +488,13 @@ Z wyrazami szacunku,
                   <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
                   TRYB OFFLINE (Brak połączenia)
                 </div>
+              ) : isApiKeyMissingOrPlaceholder ? (
+                <div className="text-amber-400 font-semibold flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  BRAK KLUCZA API
+                </div>
               ) : (
-                <div className="text-emerald-450 font-semibold flex items-center gap-1">
+                <div className="text-emerald-400 font-semibold flex items-center gap-1">
                   <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                   {getLlmEngineLabel()}
                 </div>
@@ -472,7 +590,10 @@ Z wyrazami szacunku,
                   type="button"
                   onClick={() => {
                     setSearchQuery(ex.query);
-                    handleCheckExpense(ex.query, true);
+                    setExplanationQuery(ex.query);
+                    if (!isApiKeyMissingOrPlaceholder) {
+                      handleCheckExpense(ex.query, true);
+                    }
                   }}
                   className="p-3 bg-slate-50 hover:bg-indigo-50/60 border border-slate-250 hover:border-indigo-250 rounded-xl text-left transition-all group flex flex-col justify-between h-28 cursor-pointer shadow-2xs hover:shadow-xs"
                 >
@@ -587,22 +708,29 @@ Z wyrazami szacunku,
               <div className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-3">
                 <div className="text-[10px] text-slate-400 flex items-center gap-1.5">
                   <Calendar className="w-3.5 h-3.5" />
-                  <span>Ocena podatkowa dla bieżącej daty: <strong>3 czerwca 2026 r.</strong></span>
+                  <span>Ocena podatkowa dla bieżącej daty: <strong>{new Date().toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' })} r.</strong></span>
                 </div>
                 
-                <button
-                  type="submit"
-                  disabled={loading || !searchQuery.trim()}
-                  className={`px-5 py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
-                    loading || !searchQuery.trim()
-                      ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
-                      : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-md shadow-indigo-100'
-                  }`}
-                  id="btn-trigger-ai-tax-check"
-                >
-                  {loading ? 'ANALIZOWANIE...' : 'SPRAWDŹ KOSZT (AI)'}
-                  <Send className="w-3.5 h-3.5" />
-                </button>
+                {isApiKeyMissingOrPlaceholder ? (
+                  <div className="text-amber-805 bg-amber-50 border border-amber-200 py-1.5 px-3 rounded-xl flex items-center gap-1.5 text-[10px] font-bold">
+                    <AlertTriangle className="w-4 h-4 shrink-0 text-amber-600" />
+                    <span>Silnik AI nieaktywny (brak klucza API w Settings). Kopiuj prompt poniżej!</span>
+                  </div>
+                ) : (
+                  <button
+                    type="submit"
+                    disabled={loading || !searchQuery.trim()}
+                    className={`px-5 py-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center justify-center gap-2 transition-all cursor-pointer ${
+                      loading || !searchQuery.trim()
+                        ? 'bg-slate-100 text-slate-400 border border-slate-200 cursor-not-allowed'
+                        : 'bg-indigo-600 text-white hover:bg-indigo-500 shadow-md shadow-indigo-100'
+                    }`}
+                    id="btn-trigger-ai-tax-check"
+                  >
+                    {loading ? 'ANALIZOWANIE...' : 'SPRAWDŹ KOSZT (AI)'}
+                    <Send className="w-3.5 h-3.5" />
+                  </button>
+                )}
               </div>
             </form>
           </div>
@@ -657,7 +785,7 @@ Z wyrazami szacunku,
           )}
 
           {/* Qualification Core Result Panel */}
-          {currentResult && !loading && !isOffline && (
+          {currentResult && !loading && !isOffline && !isApiKeyMissingOrPlaceholder && (
             <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden animate-fade-in" id="qualification-audit-result-main">
               
               {/* Header Status Bar from Safety Level */}
@@ -671,10 +799,17 @@ Z wyrazami szacunku,
                       <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-white ${styles.badge} shadow-xs shrink-0 select-none`}>
                         <IconComponent className="w-6 h-6" />
                       </div>
-                      <div className="space-y-1">
-                        <h4 className="font-bold text-sm tracking-tight uppercase leading-tight font-display">
-                          {styles.text}
-                        </h4>
+                      <div className="space-y-1 text-left flex-1 col-span-1">
+                        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                          <h4 className="font-bold text-sm tracking-tight uppercase leading-tight font-display">
+                            {styles.text}
+                          </h4>
+                          {currentResult.knowledgeCutoff && (
+                            <span className="text-[9px] font-semibold bg-white/70 text-slate-850 px-2.5 py-0.5 rounded-full font-sans uppercase tracking-wider shrink-0 w-fit self-start sm:self-auto border border-white/20">
+                              Baza wiedzy: {currentResult.knowledgeCutoff}
+                            </span>
+                          )}
+                        </div>
                         <p className="text-[11px] font-medium leading-relaxed opacity-95 text-slate-750">
                           {styles.desc}
                         </p>
@@ -837,6 +972,54 @@ Z wyrazami szacunku,
                           </a>
                         </div>
                       </div>
+
+                      {/* 5. Custom Web Search Prompt Generator (Weryfikacja zmian na dzień dzisiejszy) */}
+                      <div className="space-y-3 bg-teal-50/45 p-5 rounded-2xl border border-teal-150 mt-4" id="section-web-search-prompt">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5 font-display">
+                            <Search className="w-4 h-4 text-teal-700" />
+                            Zweryfikuj Aktualność (Gotowy prompt do innych narzędzi AI z dostępem do Google)
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const promptText = generateExternalPromptBody();
+                              handleCopyText(promptText, 'web-prompt');
+                            }}
+                            className="text-[10px] font-bold text-teal-700 hover:text-teal-650 flex items-center gap-1 cursor-pointer"
+                          >
+                            <Clipboard className="w-3.5 h-3.5" />
+                            {copiedSection === 'web-prompt' ? 'skopiowano' : 'kopiuj prompt'}
+                          </button>
+                        </div>
+                        
+                        <p className="text-[10px] text-slate-500 leading-relaxed">
+                          Ten prompt możesz skopiować i wkleić do dowolnego darmowego modelu (np. <strong>Google Gemini, ChatGPT, Claude</strong> z włączoną wyszukiwarką). Zleci on modelowi przeszukanie internetu na żywo i zweryfikowanie, czy od progu bazy wiedzy (<strong className="text-slate-600">{currentResult.knowledgeCutoff || 'styczeń 2025 r.'}</strong>) do dnia dzisiejszego (<strong className="text-slate-600">{new Date().toLocaleDateString('pl-PL', { day: 'numeric', month: 'long', year: 'numeric' })} r.</strong>) nie ukazały się nowe, niekorzystne interpretacje KIS lub wyroki NSA.
+                        </p>
+
+                        <div className="bg-white border text-xs text-slate-800 rounded-xl overflow-hidden shadow-2xs border-slate-200">
+                          <textarea
+                            readOnly
+                            value={generateExternalPromptBody()}
+                            className="w-full h-48 p-4 bg-slate-50/20 text-xs font-sans text-slate-700 focus:outline-hidden leading-relaxed resize-y border-none"
+                            id="web-prompt-textarea"
+                          />
+                        </div>
+
+                        <div className="pt-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const promptText = generateExternalPromptBody();
+                              handleCopyText(promptText, 'web-prompt-click');
+                            }}
+                            className="w-full flex py-2.5 px-4 bg-white border border-teal-200 hover:bg-teal-50/30 rounded-xl font-bold text-xs text-slate-700 items-center justify-center gap-2 transition-all cursor-pointer shadow-3xs hover:border-teal-300"
+                          >
+                            <Clipboard className="w-4 h-4 text-teal-600" />
+                            {copiedSection === 'web-prompt-click' ? 'SKOPIOWANO PROMPT DO SCHOWKA!' : 'SKOPIUJ GOTOWY PROMPT BADANIA INTERNETU'}
+                          </button>
+                        </div>
+                      </div>
                     </div>
                   </div>
                 );
@@ -844,8 +1027,95 @@ Z wyrazami szacunku,
             </div>
           )}
 
+          {/* Dedicated template / copy prompt panel when API is missing/placeholder */}
+          {isApiKeyMissingOrPlaceholder && !loading && !isOffline && (
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-xs overflow-hidden animate-fade-in" id="no-api-copy-prompt-panel">
+              {/* Header block highlighting prompt generator */}
+              <div className="p-5 border-b border-slate-200 bg-amber-50/50 text-amber-900 flex items-start gap-4" id="no-api-header">
+                <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white bg-amber-500 shadow-xs shrink-0 select-none">
+                  <Search className="w-6 h-6" />
+                </div>
+                <div className="space-y-1 text-left flex-1 col-span-1">
+                  <h4 className="font-bold text-sm tracking-tight uppercase leading-tight font-display flex items-center gap-1.5 text-amber-950">
+                    Skarbowa Baza Wiedzy (Kopiowanie Promptu)
+                  </h4>
+                  <p className="text-[11px] font-medium leading-relaxed opacity-95 text-slate-750 font-sans">
+                    Bezpośredni silnik weryfikacyjny AI w tej aplikacji nie posiada podpiętego klucza API. Wykorzystaj poniższy, profesjonnie przygotowany generator promptu w formacie <strong>Markdown</strong>, aby uzyskać bezpłatną analizę na żywo w innych darmowych narzędziach AI z dostępem do internetu (ChatGPT, Gemini, Claude).
+                  </p>
+                </div>
+              </div>
+
+              {/* Prompt Box Details */}
+              <div className="p-6 space-y-4">
+                <div className="bg-slate-50 border border-slate-200 rounded-xl p-3">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Wpisany lub wybrany wydatek:</span>
+                  <span className="text-slate-800 font-medium text-xs mt-1 block">
+                    {searchQuery.trim() ? `"${searchQuery}"` : '[Wybierz przykład po lewej lub wpisz wydatek w polu powyżej, aby automatycznie odświeżyć prompt]'}
+                  </span>
+                </div>
+
+                {/* 5. Custom Web Search Prompt Generator (Weryfikacja zmian na dzień dzisiejszy) */}
+                <div className="space-y-3 bg-teal-50/45 p-5 rounded-2xl border border-teal-150 animate-fade-in">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-slate-800 uppercase tracking-wider flex items-center gap-1.5 font-display">
+                      <Search className="w-4 h-4 text-teal-700" />
+                      Wygenerowany Prompt do Zewnętrznych AI (Kopiuj i Wklej)
+                    </span>
+                    <button
+                      type="button"
+                      disabled={!searchQuery.trim()}
+                      onClick={() => {
+                        const promptText = generateExternalPromptBody();
+                        handleCopyText(promptText, 'web-prompt-offline');
+                      }}
+                      className={`text-[10px] font-bold flex items-center gap-1 cursor-pointer ${
+                        searchQuery.trim() ? 'text-teal-700 hover:text-teal-650' : 'text-slate-350 cursor-not-allowed'
+                      }`}
+                    >
+                      <Clipboard className="w-3.5 h-3.5" />
+                      {copiedSection === 'web-prompt-offline' ? 'skopiowano' : 'kopiuj prompt'}
+                    </button>
+                  </div>
+                  
+                  <p className="text-[10px] text-slate-500 leading-relaxed font-sans">
+                    Poniższy prompt został sformatowany przy użyciu <strong>języka Markdown</strong>. Możesz go skopiować i wkleić bezpośrednio do dowolnego czatu AI z dostępem do Google Search (np. <strong>Google Gemini, ChatGPT, Claude</strong>), aby model sam przeszukał aktualną bazę podatkową i ocenił Twój wydatek.
+                  </p>
+
+                  <div className={`bg-white border text-xs text-slate-800 rounded-xl overflow-hidden shadow-2xs border-slate-200 ${!searchQuery.trim() ? 'opacity-50' : ''}`}>
+                    <textarea
+                      readOnly
+                      placeholder="Wpisz szczegóły wydatku w polu roboczym powyżej, aby wygenerować dedykowany prompt..."
+                      value={generateExternalPromptBody()}
+                      className="w-full h-80 p-4 bg-slate-50/20 text-xs font-sans text-slate-750 focus:outline-hidden leading-relaxed resize-y border-none"
+                      id="web-prompt-textarea-offline"
+                    />
+                  </div>
+
+                  <div className="pt-1">
+                    <button
+                      type="button"
+                      disabled={!searchQuery.trim()}
+                      onClick={() => {
+                        const promptText = generateExternalPromptBody();
+                        handleCopyText(promptText, 'web-prompt-click-offline');
+                      }}
+                      className={`w-full flex py-2.5 px-4 bg-white border rounded-xl font-bold text-xs items-center justify-center gap-2 transition-all shadow-3xs ${
+                        searchQuery.trim() 
+                          ? 'border-teal-200 hover:bg-teal-50/30 text-slate-700 hover:border-teal-300 cursor-pointer' 
+                          : 'border-slate-200 text-slate-450 bg-slate-50 cursor-not-allowed'
+                      }`}
+                    >
+                      <Clipboard className="w-4 h-4 text-teal-600" />
+                      {copiedSection === 'web-prompt-click-offline' ? 'SKOPIOWANO PROMPT DO SCHOWKA!' : 'SKOPIUJ GOTOWY PROMPT BADANIA INTERNETU'}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Help notice if nothing is searched yet */}
-          {!currentResult && !loading && !isOffline && (
+          {!currentResult && !loading && !isOffline && !isApiKeyMissingOrPlaceholder && (
             <div className="bg-slate-50 border border-slate-200 rounded-3xl p-8 text-center space-y-3" id="no-result-helper-message">
               <div className="w-12 h-12 bg-white border border-slate-200 rounded-full flex items-center justify-center text-lg mx-auto shadow-2xs">
                 💡
@@ -854,7 +1124,7 @@ Z wyrazami szacunku,
                 <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider">
                   Oczekiwanie na zapytanie kosztowe
                 </h4>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
+                <p className="text-[11px] text-slate-400 leading-relaxed font-sans">
                   Podaj szczegóły wydatku w polu powyżej i kliknij przycisk, lub skorzystaj ze <strong>wzorów typowych kosztów architekta</strong> po lewej stronie, aby odblokować pełną ekspertyzę prawną AI.
                 </p>
               </div>
@@ -871,10 +1141,47 @@ Z wyrazami szacunku,
         <div className="space-y-1 text-[11px] text-indigo-900 leading-relaxed">
           <span className="font-bold">Edukacyjność i tarcza bezpieczeństwa:</span>
           <p className="opacity-95 text-indigo-850">
-            Weryfikacja celowości opiera się na wytycznych prawa podatkowego obowiązujących w Polsce na rok podatkowy <strong>2026</strong>. Porady mają charakter doradczo-dydaktyczny, pozwalający przygotować twarde argumentacje rynkowe bezpośrednio pod PKD 71.11.Z. Wyniki z asystenta nie zastępują spersonalizowanego audytu księgowego ani wiążącej opinii licencjonowanego doradcy podatkowego w trybie formalnym. Dane oznaczające kontrahentów są rewidowane lokalnie przed przetworzeniem.
+            Weryfikacja celowości opiera się na wytycznych prawa podatkowego obowiązujących w Polsce na rok podatkowy <strong>2026</strong>. Porady mają charakter doradczo-dydaktyczny, pozwalający przygotować twarde argumentacje rynkowe bezpośrednio pod PKD 71.11.Z. Wyniki z asystenta nie zastępują spersonalizowanego audytu księgowego ani wiążącej opinii licencjonowanego doradcy podatkowego v trybie formalnym. Dane oznaczające kontrahentów są rewidowane lokalnie przed przetworzeniem.
           </p>
         </div>
       </div>
+
+      {/* Custom Confirmation Modal for Clear History */}
+      {showClearHistoryConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in" id="clear-history-confirm-modal">
+          <div className="bg-white rounded-3xl shadow-xl border border-slate-200 max-w-md w-full p-6 space-y-4 animate-scale-in">
+            <div className="flex items-start gap-3">
+              <div className="p-3 bg-rose-50 rounded-2xl text-rose-600 shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-slate-900 tracking-tight font-display">
+                  Czyszczenie historii zapytań
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed text-left">
+                  Czy na pewno chcesz wyczyścić całą historię zapytań o kwalifikowalność kosztów? Tej operacji nie można cofnąć!
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2.5 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowClearHistoryConfirm(false)}
+                className="px-4 h-9 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                onClick={executeClearHistory}
+                className="px-4 h-9 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors cursor-pointer shadow-sm"
+              >
+                Tak, wyczyść historię
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );

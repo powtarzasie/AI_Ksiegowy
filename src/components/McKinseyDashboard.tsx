@@ -65,6 +65,57 @@ const formatPLN = (num: number) => {
   return `${resultStr} zł`;
 };
 
+const KPI_INFO_DETAILS: Record<string, { title: string; desc: string; formula?: string; consequence?: string }> = {
+  ebitda: {
+    title: "EBITDA (Zysk Operacyjny)",
+    desc: "To zysk firmy z podstawowej działalności przed odliczeniem odsetek od kredytów, podatków dochodowych oraz amortyzacji (zużycia sprzętu i wartości niematerialnych). Pokazuje realną zyskowność operacyjną Twojego biznesu.",
+    formula: "Wzór: EBITDA = Przychody operacyjne - Koszty operacyjne (bez amortyzacji i podatków)",
+    consequence: "Dla kogo to ważne? Dla właściciela, banków i inwestorów. Pokazuje, czy Twój podstawowy model biznesowy zarabia pieniądze na czysto, niezależnie od stopnia zadłużenia firmy i obciążeń podatkowych.",
+  },
+  arr: {
+    title: "Prognozowany ARR (Annualized Run Rate)",
+    desc: "To przewidywana roczna wartość przychodów Twojej firmy wyliczona na podstawie aktualnego, średniego miesięcznego poziomu obrotów. Przekłada dzisiejsze tempo na perspektywę całych 12 miesięcy.",
+    formula: "Wzór: ARR = Średnie miesięczne przychody z ostatniego okresu x 12 miesięcy",
+    consequence: "Dla kogo to ważne? Pozwala realistycznie oszacować całościową skalę biznesu oraz zaplanować bezpieczny roczny budżet na kluczowe inwestycje i zatrudnienie.",
+  },
+  risk: {
+    title: "Koncentracja Ryzyka",
+    desc: "Udział procentowy największego klienta w Twoich całkowitych przychodach. Wskazuje, w jakim stopniu byt finansowy Twojej firmy zależy od pojedynczego podmiotu.",
+    formula: "Wzór: Koncentracja = Przychód od największego klienta / Całkowity przychód firmy x 100%",
+    consequence: "Dla kogo to ważne? Wysoki procent (szczególnie powyżej 40%) oznacza wysokie ryzyko - niespodziewane odejście tego kontrahenta może natychmiast pozbawić firmę płynności finansowej. Bezpieczną praktyką jest stała dywersyfikacja oferty i poszukiwanie nowych odbiorców.",
+  },
+  burnrate: {
+    title: "Średni Burn-Rate (OPEX)",
+    desc: "Średnie miesięczne tempo, w jakim Twoja firma wydaje (pali) gotówkę na bieżące koszty operacyjne (utrzymanie biura, serwery, marketing, drobne zakupy).",
+    formula: "Wzór: Burn-Rate = Suma kosztów operacyjnych YTD / Liczba aktywnych miesięcy",
+    consequence: "Dla kogo to ważne? Pomaga obliczyć tzw. 'pas startowy' (runway), czyli informuje Cię, przez ile miesięcy firma utrzyma się przy życiu ze zgromadzonych oszczędności, jeśli nagle zabrakłoby nowych przychodów. Im niższy burn-rate, tym stabilniejszy biznes.",
+  },
+  personnel: {
+    title: "Koszty Osobowe (YTD)",
+    desc: "Suma wszystkich wydatków na zespół (członków zarządu, pracowników na umowach o pracę, stażystów oraz kontrahentów na fakturach B2B) od początku roku do dziś.",
+    formula: "Wzór: Koszty osobowe = Wynagrodzenia + Składki ZUS + Faktury B2B od stałych współpracowników",
+    consequence: "Dla kogo to ważne? W większości nowoczesnych firm usługowych i technologicznych praca ludzi stanowi największą pozycję kosztową. Monitorowanie tej relacji pozwala kontrolować rentowność zatrudnienia.",
+  },
+  software: {
+    title: "Koszty Licencji & SaaS (YTD)",
+    desc: "Zbiorcze wydatki na oprogramowanie, aplikacje mobilne, subskrypcje systemów chmurowych, serwery oraz licencje branżowe od początku roku do dziś.",
+    formula: "Wzór: Suma kosztów z kategorii Oprogramowanie, Licencje i SaaS",
+    consequence: "Dla kogo to ważne? Pozwala ocenić stopień automatyzacji i cyfryzacji procesów w firmie. Stały audyt licencji pomaga wyeliminować tzw. 'martwe subskrypcje' - narzędzia, za które wciąż płacisz, choć nikt już z nich nie korzysta.",
+  },
+  retainers: {
+    title: "Retainery i przychody stałe",
+    desc: "Regularne, cykliczne płatności od klientów (np. stały miesięczny abonament na nadzory autorskie, doradztwo czy stałą obsługę projektową). Zapewniają wysoką stabilność i przewidywalność finansową.",
+    formula: "Wzór: Sumaryczny przychód YTD zaklasyfikowany jako 'Cykliczny' lub stała umowa abonamentowa",
+    consequence: "Dla kogo to ważne? Zwiększają wycenę Twojej spółki i tworzą bezpieczną poduszkę na pokrywanie stałych kosztów firmy (kosztów personelu, SaaS-ów czy biura) bez obaw o przestoje między zleceniami.",
+  },
+  milestones: {
+    title: "Kamienie Milowe (Skokowe)",
+    desc: "Jednorazowe, większe wpływy finansowe skorelowane ze skończeniem konkretnych etapów prac projektowych (np. akceptacja koncepcji, zdobycie PnB lub odbiór dokumentacji).",
+    formula: "Wzór: Sumaryczny przychód YTD zaklasyfikowany jako 'Jednorazowy' lub płatność etapowa",
+    consequence: "Dla kogo to ważne? Pozwalają realizować wysokie marże i finansować inwestycje rozwojowe, lecz wymagają stałego monitorowania terminów i gromadzenia buforu gotówki na czas oczekiwania między etapami.",
+  }
+};
+
 interface McKinseyDashboardProps {
   state: AppState;
 }
@@ -97,13 +148,14 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
   // State for the interactive strategic McKinsey simulation
   const [simulatedFutureSales, setSimulatedFutureSales] = useState<number>(0); 
   const [simulatedFutureCosts, setSimulatedFutureCosts] = useState<number>(0); 
+  const [infoMetricKey, setInfoMetricKey] = useState<string | null>(null); 
 
   // Future Expenses Module State
   const DEFAULT_FUTURE_EXPENSES: FutureExpense[] = [
     {
       id: 'fe-1',
-      nazwa: 'Przedłużenie licencji SketchUp',
-      netto: 1800,
+      nazwa: 'Przedłużenie rocznych licencji Autodesk Revit',
+      netto: 14500,
       kategoria: 'Oprogramowanie',
       prawdopodobienstwo: 'wysokie',
       czyAktywny: true,
@@ -111,25 +163,25 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
     },
     {
       id: 'fe-2',
-      nazwa: 'Polisa ubezpieczeniowa OC Spółki',
+      nazwa: 'Ubezpieczenie OC zawodowe architektów',
       netto: 2500,
-      kategoria: 'Ubezpieczenia',
+      kategoria: 'Biuro',
       prawdopodobienstwo: 'wysokie',
       czyAktywny: true,
       miesiacPlanowany: 11
     },
     {
       id: 'fe-3',
-      nazwa: 'Utrzymanie Serwerów Chmurowych (AWS/GCP)',
-      netto: 4200,
-      kategoria: 'SaaS',
+      nazwa: 'Podwykonawca: Projekt konstrukcji żelbetowej',
+      netto: 15000,
+      kategoria: 'Podwykonawcy',
       prawdopodobienstwo: 'średnie',
       czyAktywny: true,
       miesiacPlanowany: 12
     },
     {
       id: 'fe-4',
-      nazwa: 'Zakup laptopa biurowego',
+      nazwa: 'Nowy wielkoformatowy ploter sieciowy A0',
       netto: 8500,
       kategoria: 'Sprzęt komputerowy',
       prawdopodobienstwo: 'niskie',
@@ -201,27 +253,27 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
   const DEFAULT_FUTURE_REVENUES: FutureRevenue[] = [
     {
       id: 'fr-1',
-      nazwa: 'Zakontraktowane wdrożenie (Etap II)',
-      netto: 28000,
-      kategoria: 'Wdrożenie',
+      nazwa: 'Zlecenie: Projekt koncepcyjny osiedla (I transza)',
+      netto: 45000,
+      kategoria: 'Projekt Koncepcyjny',
       prawdopodobienstwo: 'wysokie',
       czyAktywny: true,
       miesiacPlanowany: 10
     },
     {
       id: 'fr-2',
-      nazwa: 'Abonamenty i opieka techniczna Q4',
-      netto: 15000,
-      kategoria: 'SaaS / Stałe',
+      nazwa: 'Zlecenie: Projekt budowlany biurowca (II transza)',
+      netto: 75000,
+      kategoria: 'Projekt Budowlany',
       prawdopodobienstwo: 'wysokie',
       czyAktywny: true,
       miesiacPlanowany: 11
     },
     {
       id: 'fr-3',
-      nazwa: 'Premia roczna za KPI od klienta głównego',
-      netto: 20000,
-      kategoria: 'Inne',
+      nazwa: 'Nadzory autorskie na budowie (Abonament miesięczny)',
+      netto: 12000,
+      kategoria: 'Nadzór Autorski',
       prawdopodobienstwo: 'średnie',
       czyAktywny: false,
       miesiacPlanowany: 12
@@ -247,7 +299,7 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
   const [newRevName, setNewRevName] = useState('');
   const [newRevNetto, setNewRevNetto] = useState('');
   const [newRevProb, setNewRevProb] = useState<'wysokie' | 'średnie' | 'niskie'>('wysokie');
-  const [newRevCategory, setNewRevCategory] = useState('Projekt');
+  const [newRevCategory, setNewRevCategory] = useState('Projekt Koncepcyjny');
   const [newRevMonth, setNewRevMonth] = useState(12);
 
   const handleAddRevenue = (e: React.FormEvent) => {
@@ -521,7 +573,7 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
             </p>
           </div>
 
-          <div className="flex flex-col sm:flex-row lg:flex-col items-stretch gap-3 shrink-0 text-xs">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 shrink-0 text-xs w-full lg:w-[380px]">
             <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 min-w-[170px] space-y-1">
               <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Opłacone zaliczki YTD</span>
               <span className="text-sm font-black font-mono text-slate-300 block leading-none">{formatPLN(totalPaidAdvancesYTD)}</span>
@@ -534,7 +586,25 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
               <span className="text-[9px] text-slate-500 block">Z uwzględnieniem symulacji</span>
             </div>
 
-            <div className="bg-indigo-950/50 p-4 rounded-xl border border-indigo-900/60 min-w-[170px] space-y-1">
+            <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 min-w-[170px] space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Planowane Przychody</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+              </div>
+              <span className="text-sm font-black font-mono text-emerald-400 block leading-none">+{formatPLN(activeFutureRevenues)}</span>
+              <span className="text-[9px] text-slate-500 block">Zaznaczone przyszłe wpływy</span>
+            </div>
+
+            <div className="bg-slate-950/60 p-4 rounded-xl border border-slate-800/80 min-w-[170px] space-y-1">
+              <div className="flex items-center justify-between">
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Planowane Wydatki</span>
+                <span className="w-1.5 h-1.5 rounded-full bg-rose-500"></span>
+              </div>
+              <span className="text-sm font-black font-mono text-rose-400 block leading-none">-{formatPLN(activeFutureExpensesKUP)}</span>
+              <span className="text-[9px] text-slate-500 block">Zaznaczone przyszłe koszty (KUP)</span>
+            </div>
+
+            <div className="bg-indigo-950/50 p-4 rounded-xl border border-indigo-900/60 min-w-[170px] space-y-1 sm:col-span-2 lg:col-span-2">
               <span className="text-[10px] font-bold text-indigo-200 uppercase tracking-widest block font-sans">Prognozowany Zysk Netto</span>
               <span className="text-sm font-black font-mono text-emerald-400 block leading-none">{formatPLN(simulatedNetProfit)}</span>
               <span className="text-[9px] text-indigo-300/80 block">Czysty zysk do podziału</span>
@@ -550,6 +620,13 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
           <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
             <TrendingUp className="w-24 h-24 text-indigo-900" />
           </div>
+          <button
+            onClick={() => setInfoMetricKey('ebitda')}
+            className="absolute top-4 right-4 z-20 w-5 h-5 rounded-full border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-800 flex items-center justify-center text-[11px] font-bold shadow-xs transition-all cursor-pointer font-sans"
+            title="Szczegóły EBITDA"
+          >
+            i
+          </button>
           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block font-sans">EBITDA (Zysk Operacyjny)</span>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(ebitdaEstimated)}</span>
@@ -567,6 +644,13 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
           <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
             <Layers className="w-24 h-24 text-emerald-900" />
           </div>
+          <button
+            onClick={() => setInfoMetricKey('arr')}
+            className="absolute top-4 right-4 z-20 w-5 h-5 rounded-full border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-800 flex items-center justify-center text-[11px] font-bold shadow-xs transition-all cursor-pointer font-sans"
+            title="Szczegóły ARR"
+          >
+            i
+          </button>
           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block font-sans">Prognozowany ARR</span>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(annualizedRevenue)}</span>
@@ -581,6 +665,13 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
           <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
             <AlertCircle className="w-24 h-24 text-rose-900" />
           </div>
+          <button
+            onClick={() => setInfoMetricKey('risk')}
+            className="absolute top-4 right-4 z-20 w-5 h-5 rounded-full border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-800 flex items-center justify-center text-[11px] font-bold shadow-xs transition-all cursor-pointer font-sans"
+            title="Szczegóły Koncentracji"
+          >
+            i
+          </button>
           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block font-sans">Koncentracja Ryzyka</span>
           <div className="mt-1 flex items-baseline gap-2">
             <span className={`text-xl font-black font-mono tracking-tight ${isHighConcentrationRisk ? 'text-rose-600' : 'text-emerald-600'}`}>
@@ -605,6 +696,13 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
           <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
             <TrendingDown className="w-24 h-24 text-slate-900" />
           </div>
+          <button
+            onClick={() => setInfoMetricKey('burnrate')}
+            className="absolute top-4 right-4 z-20 w-5 h-5 rounded-full border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-800 flex items-center justify-center text-[11px] font-bold shadow-xs transition-all cursor-pointer font-sans"
+            title="Szczegóły Burn-rate"
+          >
+            i
+          </button>
           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block font-sans">Średni Burn-Rate (OPEX)</span>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(avgMonthlyBurnRate)}</span>
@@ -619,6 +717,13 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
           <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
             <Users className="w-24 h-24 text-sky-900" />
           </div>
+          <button
+            onClick={() => setInfoMetricKey('personnel')}
+            className="absolute top-4 right-4 z-20 w-5 h-5 rounded-full border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-800 flex items-center justify-center text-[11px] font-bold shadow-xs transition-all cursor-pointer font-sans"
+            title="Szczegóły Kosztów Osobowych"
+          >
+            i
+          </button>
           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block font-sans">Koszty Osobowe (YTD)</span>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(totalPersonnelCosts)}</span>
@@ -634,6 +739,13 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
           <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
             <AppWindow className="w-24 h-24 text-purple-900" />
           </div>
+          <button
+            onClick={() => setInfoMetricKey('software')}
+            className="absolute top-4 right-4 z-20 w-5 h-5 rounded-full border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-800 flex items-center justify-center text-[11px] font-bold shadow-xs transition-all cursor-pointer font-sans"
+            title="Szczegóły Kosztów Oprogramowania"
+          >
+            i
+          </button>
           <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block font-sans">Koszty Licencji & SaaS (YTD)</span>
           <div className="mt-1 flex items-baseline gap-2">
             <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(totalLicenseCosts)}</span>
@@ -863,7 +975,8 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
           </div>
 
           {/* 3. Strategic Planning Hub YTD (What-if Position Cards Hub) */}
-          <div className="bg-white rounded-2xl border border-slate-200 p-6 space-y-4 shadow-xs" id="mck-strategic-planning-hub">
+          {/* Ukryte z widoku bilansu - pełny planer jest teraz osobną sekcją na dedykowanej karcie */}
+          <div className="hidden" id="mck-strategic-planning-hub">
             <div className="border-b border-slate-100 pb-3">
               <h3 className="text-sm font-black text-slate-805 text-slate-850 uppercase tracking-wider font-display flex items-center gap-1.5">
                 <Sparkles className="w-4 h-4 text-indigo-500" />
@@ -1048,12 +1161,19 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
                         onChange={(e) => setNewExpCategory(e.target.value)}
                         className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white outline-indigo-500 text-slate-700 font-bold cursor-pointer"
                       >
-                        <option value="Oprogramowanie">Licencje CAD / BIM</option>
-                        <option value="SaaS">Usługi SaaS / Rendery</option>
-                        <option value="Biuro">Utrzymanie Biura</option>
-                        <option value="Sprzęt komputerowy">Projektory i Stacje GPU</option>
-                        <option value="Reklama">Marketing i Reklama</option>
-                        <option value="Inne">Inne Inwestycje</option>
+                        <option value="Oprogramowanie">Oprogramowanie / Licencje CAD, BIM i SaaS</option>
+                        <option value="Podwykonawcy">Podwykonawcy i Branżyści (instalacje, konstrukcja itp.)</option>
+                        <option value="Wynagrodzenia etat">Wynagrodzenia - Umowa o pracę (etat)</option>
+                        <option value="Umowa zlecenie">Wynagrodzenia - Umowa zlecenie / B2B</option>
+                        <option value="Umowa o dzieło">Wynagrodzenia - Umowa o dzieło</option>
+                        <option value="Biuro">Koszty biurowe, Czynsze i Media</option>
+                        <option value="Pojazdy">Samochody służbowe, Paliwo i Transport (pojazd)</option>
+                        <option value="Marketing">Marketing, Reklama i Konkursy architektoniczne</option>
+                        <option value="Szkolenia">Szkolenia, Konferencje i Certyfikaty</option>
+                        <option value="Sprzęt komputerowy font-sans">Sprzęt komputerowy, Plotery i Makiety 3D</option>
+                        <option value="Telefony">Telefony i Łączność</option>
+                        <option value="Usługi">Doradztwo, Księgowość i Obsługa prawna</option>
+                        <option value="Inne">Inne optymalne koszty</option>
                       </select>
                     </div>
                     <div className="space-y-1">
@@ -1221,11 +1341,12 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
                         onChange={(e) => setNewRevCategory(e.target.value)}
                         className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white outline-emerald-500 text-slate-700 font-bold cursor-pointer"
                       >
-                        <option value="Projekt">Projekt / Konsultacja</option>
-                        <option value="SaaS / Stałe">Nadzór Budowlany / Retainer</option>
-                        <option value="Doradztwo">Doradztwo i Analizy</option>
-                        <option value="Szkolenie">Makiety renderingu / Wsparcie</option>
-                        <option value="Inne">Inne Wpływy</option>
+                        <option value="Projekt Koncepcyjny">Projekt Koncepcyjny i Analizy</option>
+                        <option value="Projekt Budowlany">Projekt Budowlany / Wykonawczy</option>
+                        <option value="Nadzór Autorski">Nadzór Autorski i Budowlany</option>
+                        <option value="Wizualizacje">Wizualizacje, Rendery i Makiety</option>
+                        <option value="Doradztwo">Ekspertyzy, Inwentaryzacje i Doradztwo</option>
+                        <option value="Inne">Inne wpływy</option>
                       </select>
                     </div>
                     <div className="space-y-1">
@@ -1281,15 +1402,31 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
 
             {/* Smart Grouped Metrics */}
             <div className="grid grid-cols-2 gap-3" id="revenue-behavior-groups">
-              <div className="bg-emerald-50/35 border border-emerald-100 rounded-xl p-3.5">
-                <span className="text-[9px] text-emerald-800 font-extrabold uppercase tracking-wider block font-sans">Retainery i stałe</span>
+              <div className="bg-emerald-50/35 border border-emerald-100 rounded-xl p-3.5 relative overflow-hidden group hover:border-emerald-250 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => setInfoMetricKey('retainers')}
+                  className="absolute top-2.5 right-2.5 z-20 w-4 h-4 rounded-full border border-emerald-200 bg-emerald-50 hover:bg-emerald-100/80 text-emerald-600 hover:text-emerald-800 flex items-center justify-center text-[10px] font-bold shadow-xs transition-all cursor-pointer font-sans"
+                  title="Szczegóły: Retainery"
+                >
+                  i
+                </button>
+                <span className="text-[9px] text-emerald-800 font-extrabold uppercase tracking-wider block font-sans pr-4">Retainery i stałe</span>
                 <span className="text-base font-black text-slate-900 font-mono block mt-1">
                   {formatPLN(totalRecurrentRevenues)}
                 </span>
                 <span className="text-[9px] text-slate-400 font-medium font-sans italic block mt-0.5">Bieżąca cykliczność</span>
               </div>
-              <div className="bg-indigo-50/20 border border-indigo-150 rounded-xl p-3.5">
-                <span className="text-[9px] text-indigo-850 font-extrabold uppercase tracking-wider block font-sans">Kamienie Milowe</span>
+              <div className="bg-indigo-50/20 border border-indigo-150 rounded-xl p-3.5 relative overflow-hidden group hover:border-indigo-250 transition-colors">
+                <button
+                  type="button"
+                  onClick={() => setInfoMetricKey('milestones')}
+                  className="absolute top-2.5 right-2.5 z-20 w-4 h-4 rounded-full border border-indigo-250 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-600 hover:text-indigo-800 flex items-center justify-center text-[10px] font-bold shadow-xs transition-all cursor-pointer font-sans"
+                  title="Szczegóły: Kamienie Milowe"
+                >
+                  i
+                </button>
+                <span className="text-[9px] text-indigo-850 font-extrabold uppercase tracking-wider block font-sans pr-4">Kamienie Milowe</span>
                 <span className="text-base font-black text-indigo-600 font-mono block mt-1">
                   {formatPLN(totalSpikyRevenues)}
                 </span>
@@ -1545,6 +1682,89 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
         </div>
 
       </div>
+
+      {/* Metric Info Modal */}
+      {infoMetricKey && (() => {
+        const info = KPI_INFO_DETAILS[infoMetricKey];
+        if (!info) return null;
+        return (
+          <div className="fixed inset-0 bg-slate-950/60 backdrop-blur-xs z-[100] flex items-center justify-center p-4 animate-fade-in" onClick={() => setInfoMetricKey(null)}>
+            <div 
+              className="bg-white rounded-2xl border border-slate-200 p-6 max-w-md w-full shadow-2xl relative space-y-4 animate-scale-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Close Button */}
+              <button 
+                onClick={() => setInfoMetricKey(null)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-700 p-1.5 rounded-full transition-colors hover:bg-slate-100"
+              >
+                <Plus className="w-5 h-5 rotate-45" />
+              </button>
+
+              <div className="flex items-center gap-3 text-left">
+                <div className={`p-2.5 rounded-xl ${
+                  infoMetricKey === 'ebitda' ? 'bg-indigo-50 text-indigo-600' :
+                  infoMetricKey === 'arr' ? 'bg-emerald-50 text-emerald-600' :
+                  infoMetricKey === 'risk' ? 'bg-rose-50 text-rose-600' :
+                  infoMetricKey === 'burnrate' ? 'bg-slate-100 text-slate-600' :
+                  infoMetricKey === 'personnel' ? 'bg-sky-50 text-sky-600' :
+                  infoMetricKey === 'retainers' ? 'bg-emerald-50 text-emerald-600' :
+                  infoMetricKey === 'milestones' ? 'bg-indigo-50 text-indigo-600' :
+                  'bg-purple-50 text-purple-600'
+                }`}>
+                  {infoMetricKey === 'ebitda' && <TrendingUp className="w-6 h-6" />}
+                  {infoMetricKey === 'arr' && <Layers className="w-6 h-6" />}
+                  {infoMetricKey === 'risk' && <AlertCircle className="w-6 h-6" />}
+                  {infoMetricKey === 'burnrate' && <TrendingDown className="w-6 h-6" />}
+                  {infoMetricKey === 'personnel' && <Users className="w-6 h-6" />}
+                  {infoMetricKey === 'software' && <AppWindow className="w-6 h-6" />}
+                  {infoMetricKey === 'retainers' && <Sparkles className="w-6 h-6" />}
+                  {infoMetricKey === 'milestones' && <Layers className="w-6 h-6" />}
+                </div>
+                <div>
+                  <h3 className="font-display font-black text-slate-900 text-base leading-tight">
+                    {info.title}
+                  </h3>
+                  <span className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">
+                    Słownik Biznesowy
+                  </span>
+                </div>
+              </div>
+
+              <div className="space-y-3.5 pt-1.5 text-left">
+                <div className="space-y-1">
+                  <span className="text-[10px] uppercase font-black tracking-widest text-[#4f46e5] block">Co to oznacza?</span>
+                  <p className="text-xs text-slate-600 leading-relaxed font-sans">{info.desc}</p>
+                </div>
+
+                {info.formula && (
+                  <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 space-y-1">
+                    <span className="text-[10px] uppercase font-black tracking-widest text-slate-500 block">Jak to liczymy?</span>
+                    <p className="text-xs font-mono text-slate-600">{info.formula}</p>
+                  </div>
+                )}
+
+                {info.consequence && (
+                  <div className="space-y-1">
+                    <span className="text-[10px] uppercase font-black tracking-widest text-[#4f46e5] block font-sans">Zastosowanie praktyczne</span>
+                    <p className="text-xs text-slate-600 leading-relaxed font-sans">{info.consequence}</p>
+                  </div>
+                )}
+              </div>
+
+              <div className="pt-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setInfoMetricKey(null)}
+                  className="w-full bg-[#4f46e5] text-white py-2.5 rounded-xl text-xs font-black shadow-sm transition-all hover:bg-indigo-700 active:scale-98"
+                >
+                  Zamknij wyjaśnienie
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
     </div>
   );

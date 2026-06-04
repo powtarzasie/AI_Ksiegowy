@@ -84,6 +84,20 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
           const profit = revenue - cost;
           const margin = revenue > 0 ? (profit / revenue) * 100 : 0;
           
+          const currentMonthSales = sales.some(s => {
+            if (!s.data) return false;
+            const parts = s.data.split('-');
+            return parts.length >= 2 && parseInt(parts[0], 10) === y && parseInt(parts[1], 10) === m;
+          });
+
+          const currentMonthPurchases = purchases.some(p => {
+            if (!p.data) return false;
+            const parts = p.data.split('-');
+            return parts.length >= 2 && parseInt(parts[0], 10) === y && parseInt(parts[1], 10) === m;
+          });
+
+          const hasData = currentMonthSales || currentMonthPurchases || revenue > 0 || cost > 0;
+          
           resultSeries.push({
             label: monthLabelsPL[m - 1],
             revenue,
@@ -92,7 +106,7 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
             margin,
             year: y,
             month: m,
-            hasData: true
+            hasData: hasData
           });
         } else {
           // Future months, empty
@@ -156,6 +170,17 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
 
   // Active dataset is directly the calculated real books records
   const chartData = calculatedRealData;
+
+  // Filter trend data to only show months with actual transactions or values
+  const visibleChartData = useMemo(() => {
+    const filtered = chartData.filter(d => d.hasData);
+    if (filtered.length === 0) {
+      // Graceful fallback to avoid blank space and crash: if there's no transaction anywhere, show current active month
+      const activePoint = chartData.find(d => d.year === settings.rokPodatkowy && d.month === settings.miesiacPodatkowy);
+      return activePoint ? [activePoint] : (chartData.length > 0 ? [chartData[0]] : []);
+    }
+    return filtered;
+  }, [chartData, settings]);
 
   // Resolve current active tax month data point
   const currentMonthData = useMemo(() => {
@@ -683,29 +708,30 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
                     const chartWidth = 445;
                     const chartHeight = 210;
 
+                    const divisor = visibleChartData.length > 1 ? visibleChartData.length - 1 : 1;
+                    const colSpacing = chartWidth / divisor;
+
                     // Map elements
-                    const activePoints = chartData.map((d, i) => {
-                      const colSpacing = chartWidth / 11;
-                      const x = (i * colSpacing) + 12;
+                    const activePoints = visibleChartData.map((d, i) => {
+                      const x = visibleChartData.length > 1 ? (i * colSpacing) + 12 : chartWidth / 2 + 12;
                       const yRevenue = chartHeight - (d.revenue / revenueCostScale) * chartHeight;
                       const yCost = chartHeight - (d.cost / revenueCostScale) * chartHeight;
                       return { x, yRevenue, yCost, revenue: d.revenue, cost: d.cost, hasData: d.hasData };
                     });
 
-                    const validPoints = activePoints.filter(p => p.hasData);
-                    if (validPoints.length === 0) return null;
+                    if (activePoints.length === 0) return null;
 
                     // Assemble Line Tracks
-                    let revLine = `M ${validPoints[0].x} ${validPoints[0].yRevenue}`;
-                    let costLine = `M ${validPoints[0].x} ${validPoints[0].yCost}`;
-                    for (let idx = 1; idx < validPoints.length; idx++) {
-                      revLine += ` L ${validPoints[idx].x} ${validPoints[idx].yRevenue}`;
-                      costLine += ` L ${validPoints[idx].x} ${validPoints[idx].yCost}`;
+                    let revLine = `M ${activePoints[0].x} ${activePoints[0].yRevenue}`;
+                    let costLine = `M ${activePoints[0].x} ${activePoints[0].yCost}`;
+                    for (let idx = 1; idx < activePoints.length; idx++) {
+                      revLine += ` L ${activePoints[idx].x} ${activePoints[idx].yRevenue}`;
+                      costLine += ` L ${activePoints[idx].x} ${activePoints[idx].yCost}`;
                     }
 
                     // Assemble Filled Areas
-                    const revArea = `${revLine} L ${validPoints[validPoints.length - 1].x} ${chartHeight} L ${validPoints[0].x} ${chartHeight} Z`;
-                    const costArea = `${costLine} L ${validPoints[validPoints.length - 1].x} ${chartHeight} L ${validPoints[0].x} ${chartHeight} Z`;
+                    const revArea = `${revLine} L ${activePoints[activePoints.length - 1].x} ${chartHeight} L ${activePoints[0].x} ${chartHeight} Z`;
+                    const costArea = `${costLine} L ${activePoints[activePoints.length - 1].x} ${chartHeight} L ${activePoints[0].x} ${chartHeight} Z`;
 
                     return (
                       <>
@@ -714,11 +740,15 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
                         <path d={costArea} fill="url(#redAreaGrad)" />
 
                         {/* Line paths */}
-                        <path d={revLine} fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
-                        <path d={costLine} fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="2 2" />
+                        {activePoints.length > 1 ? (
+                          <>
+                            <path d={revLine} fill="none" stroke="#2563eb" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+                            <path d={costLine} fill="none" stroke="#dc2626" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" strokeDasharray="2 2" />
+                          </>
+                        ) : null}
 
                         {/* Interactive dots only on highlighted nodes */}
-                        {validPoints.map((pt, i) => (
+                        {activePoints.map((pt, i) => (
                           <g key={`lines-nd-${i}`} className="group cursor-pointer">
                             <circle cx={pt.x} cy={pt.yRevenue} r="4" fill="#2563eb" stroke="white" strokeWidth="1.5" />
                             <circle cx={pt.x} cy={pt.yCost} r="3" fill="#dc2626" stroke="white" strokeWidth="1" />
@@ -729,10 +759,11 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
                   })()}
 
                   {/* Horizontal X Axis Labels description */}
-                  {chartData.map((d, i) => {
+                  {visibleChartData.map((d, i) => {
                     const chartWidth = 445;
-                    const colSpacing = chartWidth / 11;
-                    const x = (i * colSpacing) + 12;
+                    const divisor = visibleChartData.length > 1 ? visibleChartData.length - 1 : 1;
+                    const colSpacing = chartWidth / divisor;
+                    const x = visibleChartData.length > 1 ? (i * colSpacing) + 12 : chartWidth / 2 + 12;
                     return (
                       <text
                         key={`lbl-x-${i}`}
@@ -812,18 +843,21 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
 
                     return (
                       <>
-                        {chartData.map((d, i) => {
-                          const colSpacing = chartWidth / 11;
-                          const barWidth = Math.min(11, colSpacing - 4);
-                          const x = (i * colSpacing) + 12 - (barWidth / 2) + 6;
+                        {visibleChartData.map((d, i) => {
+                          const divisor = visibleChartData.length > 1 ? visibleChartData.length - 1 : 1;
+                          const colSpacing = visibleChartData.length > 1 ? chartWidth / divisor : chartWidth;
+                          const barWidth = visibleChartData.length > 1 ? Math.min(14, colSpacing - 6) : 24;
+                          const x = visibleChartData.length > 1 
+                            ? (i * colSpacing) + 12 - (barWidth / 2) + 6
+                            : (chartWidth / 2) + 12 - (barWidth / 2) + 6;
                           
                           // Convert value to coordinates
-                          const barHeight = d.hasData ? Math.max(1.5, (Math.max(0, d.profit) / profitScale) * chartHeight) : 0;
+                          const barHeight = Math.max(1.5, (Math.max(0, d.profit) / profitScale) * chartHeight);
                           const y = chartHeight - barHeight;
 
                           return (
                             <g key={`profit-col-${i}`} className="hover:opacity-85 transition-opacity cursor-pointer">
-                              {d.hasData && d.profit > 0 && (
+                              {d.profit > 0 && (
                                 <rect
                                   x={x}
                                   y={y}
@@ -835,7 +869,7 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
                               )}
                               
                               {/* Negative handling indicator */}
-                              {d.hasData && d.profit <= 0 && (
+                              {d.profit <= 0 && (
                                 <rect
                                   x={x}
                                   y={chartHeight - 2}
@@ -849,9 +883,12 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
                         })}
 
                         {/* Align X axis labels inside SVG */}
-                        {chartData.map((d, i) => {
-                          const colSpacing = chartWidth / 11;
-                          const x = (i * colSpacing) + 12 + 6;
+                        {visibleChartData.map((d, i) => {
+                          const divisor = visibleChartData.length > 1 ? visibleChartData.length - 1 : 1;
+                          const colSpacing = visibleChartData.length > 1 ? chartWidth / divisor : chartWidth;
+                          const x = visibleChartData.length > 1 
+                            ? (i * colSpacing) + 12 + 6
+                            : (chartWidth / 2) + 12 + 6;
                           return (
                             <text
                               key={`lbl-pr-${i}`}
@@ -930,13 +967,16 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
                   const chartWidth = 230;
                   const chartHeight = 180;
 
-                  const activePoints = chartData.map((d, i) => {
-                    const x = 5 + (i / 11) * chartWidth;
+                  const divisor = visibleChartData.length > 1 ? visibleChartData.length - 1 : 1;
+                  const activePoints = visibleChartData.map((d, i) => {
+                    const x = visibleChartData.length > 1 
+                      ? 5 + (i / divisor) * chartWidth
+                      : 5 + 0.5 * chartWidth;
                     const y = chartHeight - ((d.margin - marginScale.min) / marginScale.range) * chartHeight;
                     return { x, y, hasData: d.hasData, label: d.label, margin: d.margin };
                   });
 
-                  const validPoints = activePoints.filter(pt => pt.hasData);
+                  const validPoints = activePoints;
                   
                   let path = '';
                   if (validPoints.length > 0) {
@@ -946,7 +986,7 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
                     }
                   }
 
-                  const areaPath = path ? `${path} L ${validPoints[validPoints.length - 1].x} ${chartHeight} L ${validPoints[0].x} ${chartHeight} Z` : '';
+                  const areaPath = (path && validPoints.length > 1) ? `${path} L ${validPoints[validPoints.length - 1].x} ${chartHeight} L ${validPoints[0].x} ${chartHeight} Z` : '';
 
                   return (
                     <>
@@ -954,7 +994,7 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
                         <path d={areaPath} fill="url(#purpleAreaGrad)" />
                       )}
 
-                      {path && (
+                      {path && validPoints.length > 1 && (
                         <path
                           d={path}
                           fill="none"
@@ -989,8 +1029,10 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
                       ))}
 
                       {/* Align X labels inside SVG */}
-                      {chartData.map((d, i) => {
-                        const x = 5 + (i / 11) * chartWidth;
+                      {visibleChartData.map((d, i) => {
+                        const x = visibleChartData.length > 1 
+                          ? 5 + (i / divisor) * chartWidth
+                          : 5 + 0.5 * chartWidth;
                         return (
                           <text
                             key={`lbl-mg-${i}`}

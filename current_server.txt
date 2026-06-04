@@ -1,0 +1,693 @@
+1: import express from 'express';
+2: import path from 'path';
+3: import { createServer as createViteServer } from 'vite';
+4: import { GoogleGenAI, Type } from '@google/genai';
+5: import dotenv from 'dotenv';
+6: import os from 'os';
+7: import fs from 'fs';
+8: import { exec } from 'child_process';
+9: 
+10: dotenv.config();
+11: 
+12: const CONFIG_DIR = path.join(os.homedir(), '.symulator_podatkow');
+13: const CONFIG_PATH = path.join(CONFIG_DIR, 'config.json');
+14: 
+15: function getDbPath(): string {
+16:   try {
+17:     if (fs.existsSync(CONFIG_PATH)) {
+18:       const configRaw = fs.readFileSync(CONFIG_PATH, 'utf8');
+19:       const config = JSON.parse(configRaw);
+20:       if (config.dbPath) {
+21:         return config.dbPath;
+22:       }
+23:     }
+24:   } catch (err) {
+25:     console.error('Error reading config:', err);
+26:   }
+27:   return path.join(CONFIG_DIR, 'baza_danych.json');
+28: }
+29: 
+30: function setDbPath(newPath: string) {
+31:   try {
+32:     if (!fs.existsSync(CONFIG_DIR)) {
+33:       fs.mkdirSync(CONFIG_DIR, { recursive: true });
+34:     }
+35:     let config: any = {};
+36:     if (fs.existsSync(CONFIG_PATH)) {
+37:       try {
+38:         config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'));
+39:       } catch (e) {}
+40:     }
+41:     config.dbPath = newPath;
+42:     fs.writeFileSync(CONFIG_PATH, JSON.stringify(config, null, 2), 'utf8');
+43:   } catch (err) {
+44:     console.error('Error writing config:', err);
+45:   }
+46: }
+47: 
+48: async function startServer() {
+49:   const app = express();
+50:   const PORT = 3000;
+51: 
+52:   // Set up body parsing with high limit for larger Excel exports
+53:   app.use(express.json({ limit: '15mb' }));
+54:   app.use(express.urlencoded({ extended: true, limit: '15mb' }));
+55: 
+56:   // Local Database Persistence Config Endpoints
+57:   app.get('/api/db/config', async (req, res) => {
+58:     try {
+59:       const currentPath = getDbPath();
+60:       const defaultPath = path.join(os.homedir(), '.symulator_podatkow', 'baza_danych.json');
+61:       const exists = fs.existsSync(currentPath);
+62:       let size: number | null = null;
+63:       let modified: string | null = null;
+64:       if (exists) {
+65:         try {
+66:           const stats = fs.statSync(currentPath);
+67:           size = stats.size;
+68:           modified = stats.mtime.toISOString();
+69:         } catch (e) {
+70:           console.error('Error reading stats:', e);
+71:         }
+72:       }
+73:       return res.json({
+74:         status: 'success',
+75:         dbPath: currentPath,
+76:         defaultPath: defaultPath,
+77:         exists: exists,
+78:         size: size,
+79:         modified: modified
+80:       });
+81:     } catch (err: any) {
+82:       console.error('Error getting database config:', err);
+83:       return res.status(500).json({ error: err.message });
+84:     }
+85:   });
+86: 
+87:   app.delete('/api/db', (req, res) => {
+88:     try {
+89:       const p = getDbPath();
+90:       if (fs.existsSync(p)) {
+91:         fs.unlinkSync(p);
+92:       }
+93:       return res.json({ status: 'success', path: p });
+94:     } catch (e: any) {
+95:       return res.status(500).json({ error: e.message });
+96:     }
+97:   });
+98: 
+99:   app.post('/api/db/reveal', (req, res) => {
+100:     try {
+101:       const p = getDbPath();
+102:       const dir = path.dirname(p);
+103:       if (!fs.existsSync(dir)) {
+104:         fs.mkdirSync(dir, { recursive: true });
+105:       }
+106:       if (process.platform === 'win32') {
+107:         exec(fs.existsSync(p) ? 'explorer.exe /select,"' + p + '"' : 'explorer.exe "' + dir + '"');
+108:       } else if (process.platform === 'darwin') {
+109:         exec('open -R "' + p + '"');
+110:       } else {
+111:         exec('xdg-open "' + dir + '"');
+112:       }
+113:       return res.json({ status: 'success', path: p });
+114:     } catch (e: any) {
+115:       return res.status(500).json({ error: e.message });
+116:     }
+117:   });
+118: 
+119:   app.post('/api/db/config', async (req, res) => {
+120:     try {
+121:       const { dbPath, moveExistingData } = req.body;
+122:       if (!dbPath) {
+123:         return res.status(400).json({ error: 'Brak wymaganej ścieżki dbPath' });
+124:       }
+125: 
+126:       const targetPath = path.resolve(dbPath.trim());
+127:       const oldPath = getDbPath();
+128: 
+129:       if (oldPath === targetPath) {
+130:         return res.json({ status: 'success', dbPath: targetPath, message: 'Wybrana ścieżka jest taka sama jak obecna.' });
+131:       }
+132: 
+133:       const targetDir = path.dirname(targetPath);
+134:       if (!fs.existsSync(targetDir)) {
+135:         fs.mkdirSync(targetDir, { recursive: true });
+136:       }
+137: 
+138:       let dataLoaded = null;
+139: 
+140:       if (moveExistingData && fs.existsSync(oldPath)) {
+141:         // Move current data to the new path
+142:         const data = fs.readFileSync(oldPath, 'utf8');
+143:         fs.writeFileSync(targetPath, data, 'utf8');
+144:         try {
+145:           dataLoaded = JSON.parse(data);
+146:         } catch (e) {}
+147:         console.log(`Przeniesiono bazę danych z ${oldPath} do ${targetPath}`);
+148:       } else if (fs.existsSync(targetPath)) {
+149:         // Just load from target path
+150:         const data = fs.readFileSync(targetPath, 'utf8');
+151:         try {
+152:           dataLoaded = JSON.parse(data);
+153:         } catch (e) {}
+154:       }
+155: 
+156:       setDbPath(targetPath);
+157: 
+158:       return res.json({
+159:         status: 'success',
+160:         dbPath: targetPath,
+161:         data: dataLoaded,
+162:         message: moveExistingData 
+163:           ? `Pomyślnie przeniesiono bazę do nowej lokalizacji: ${targetPath}`
+164:           : `Zmieniono ścieżkę bazy danych na: ${targetPath}`
+165:       });
+166:     } catch (err: any) {
+167:       console.error('Error setting database config:', err);
+168:       return res.status(500).json({ error: err.message });
+169:     }
+170:   });
+171: 
+172:   // Local Database Persistence Endpoints for Desktop Mode
+173:   app.get('/api/db/load', async (req, res) => {
+174:     try {
+175:       const dbPath = getDbPath();
+176:       if (fs.existsSync(dbPath)) {
+177:         const rawJson = fs.readFileSync(dbPath, 'utf8');
+178:         const parsed = JSON.parse(rawJson);
+179:         return res.json({ status: 'success', data: parsed });
+180:       } else {
+181:         return res.json({ status: 'not_found', path: dbPath });
+182:       }
+183:     } catch (err: any) {
+184:       console.error('Error loading database:', err);
+185:       return res.status(500).json({ error: err.message });
+186:     }
+187:   });
+188: 
+189:   app.post('/api/db/save', async (req, res) => {
+190:     try {
+191:       const dbPath = getDbPath();
+192:       const dbDir = path.dirname(dbPath);
+193:       if (!fs.existsSync(dbDir)) {
+194:         fs.mkdirSync(dbDir, { recursive: true });
+195:       }
+196:       fs.writeFileSync(dbPath, JSON.stringify(req.body, null, 2), 'utf8');
+197:       return res.json({ status: 'success', path: dbPath });
+198:     } catch (err: any) {
+199:       console.error('Error saving database:', err);
+200:       return res.status(500).json({ error: err.message });
+201:     }
+202:   });
+203: 
+204:   // AI Tax Adviser and Qualification Helper
+205:   app.post('/api/gemini/tax-adviser', async (req, res) => {
+206:     try {
+207:       const { 
+208:         query = '', 
+209:         krs = 'Przeważająca działalność: 71.11.Z DZIAŁALNOŚĆ W ZAKRESIE ARCHITEKTURY. Pozostała działalność: 1. 74.10.Z DZIAŁALNOŚĆ W ZAKRESIE SPECJALISTYCZNEGO PROJEKTOWANIA, 2. 71.12.Z DZIAŁALNOŚĆ W ZAKRESIE INŻYNIERII I ZWIĄZANE Z NIĄ DORADZTWO TECHNICZNE.',
+210:         llmConfig = null
+211:       } = req.body;
+212: 
+213:       if (!query.trim()) {
+214:         return res.status(400).json({ error: 'Brak zapytania' });
+215:       }
+216: 
+217:       const provider = llmConfig?.provider || 'gemini';
+218:       const userApiKey = llmConfig?.apiKey;
+219:       const effectiveApiKey = provider === 'gemini' ? (userApiKey || process.env.GEMINI_API_KEY) : '';
+220: 
+221:       const isPlaceholderKey = !effectiveApiKey || 
+222:         effectiveApiKey.startsWith('AIzaSyYourKey') || 
+223:         effectiveApiKey.includes('PLACEHOLDER') || 
+224:         effectiveApiKey.trim() === '' || 
+225:         effectiveApiKey.includes('wprowadź') ||
+226:         effectiveApiKey.includes('TwójKey') ||
+227:         effectiveApiKey.includes('...') ||
+228:         effectiveApiKey.length < 10;
+229: 
+230:       const systemInstruction = `Jesteś wybitnym polskim licencjonowanym doradcą podatkowym (specjalistą od podatku CIT i VAT) oraz partnerem prawnym w renomowanej kancelarii podatkowej.
+231: Twoim celem jest pomoc właścicielowi biura architektonicznego (PKD 71.11.Z - "Działalność w zakresie architektury") w LEGALNEJ i bezpiecznej optymalizacji podatkowej.
+232: Zasugeruj jak najszersze, w pełni zgodne z literą prawa (100% legalne), zakwalifikowanie podanego wydatku jako koszt uzyskania przychodu (KUP) w spółce z o.o.
+233: 
+234: Przeanalizuj wydatek w kontekście polskiej ustawy o podatku dochodowym od osób prawnych (Ustawa o CIT) – zwłaszcza art. 15 ust. 1, oraz ustawy o VAT (prawo do odliczenia z uwzględnieniem ograniczeń np. gastronomii czy pojazdów).
+235: Wydaj jednoznaczną ocenę ("Zielone", "Żółte" lub "Czerwone" światło):
+236: - Zielone światło (Bezpieczny koszt): Koszt bezpośrednio związany z projektowaniem, pracownią, marketingiem lub BHP. Nie budzi wątpliwości fiskusa.
+237: - Żółte światło (Średnie ryzyko): Koszt, który można zakwalifikować w koszty firmy pod pewnymi warunkami formalnymi (np. trwałym naklejeniem logo, spisaniem protokołu, opisem celu biznesowego na fakturze, udowodnieniem powiązania ze startem w przetargu).
+238: - Czerwone światło (Wysokie ryzyko): Wydatek osobisty, reprezentacja sprzeczna z prawem, brak jakiegokolwiek racjonalnego związku z PKD 71.11.Z (duże prawdopodobieństwo zakwestionowania przez Urząd Skarbowy).
+239: 
+240: Zawsze podaj:
+241: 1. "light" (jedno z: "green", "yellow", "red")
+242: 2. "category" (nazwa kategorii kosztowej po polsku, np. "Koszty Spotkań z Klientami", "Odzież Służbowa / BHP", "Narzędzia Projektowe")
+243: 3. "vatDeductibility" (informacja o odliczeniu podatku VAT, w tym ograniczenia i warunki)
+244: 4. "citDeductibility" (informacja o rozliczeniu CIT, np. 100% KUP, 75% KUP itp.)
+245: 5. "justification" (Wyjątkowo precyzyjne, urzędowe, profesjonalne uzasadnienie prawne, powołujące się na przepisy np. art. 15 ust. 1 ustawy o CIT. Musi brzmieć profesjonalnie, zawierać solidne logiczne powiązanie z PKD architekta - projektowanie, inwentaryzacje, nadzór techniczny, wizualizacje. Użyj argumentów, że koszt ten służy zabezpieczeniu i zachowaniu źródła przychodów).
+246: 6. "accountingAdvice" (Konkretna, praktyczna instrukcja jak rozmawiać z księgową i co powiedzieć. Podaj listę dokładnych argumentów i wymogów formalnych, np. 'Jak oznaczyć odzież logo', 'Co wpisać na odwrocie faktury z restauracji', 'Jak udokumentować cel spotkania (np. zapisem w kalendarzu czy mailem do klienta)', 'O co poprosić biuro rachunkowe').
+247: 7. "krsRelevance" (Wykazanie spójności z PKD 71.11.Z oraz KRS podanym przez użytkownika).
+248: 8. "knowledgeCutoff" (Miesiąc i rok odcięcia Twojej bazy wiedzy podatkowej bez wyszukiwarki internetowej, np. 'styczeń 2025 r.' lub 'październik 2024 r.').
+249: 
+250: BEZWZGLĘDNA ZASADA: Nie korzystaj z wyszukiwarki Google i nie próbuj przeszukiwać sieci na żywo. Bazuj wyłącznie na wbudowanej wiedzy modelu i zadeklaruj poprawną przybliżoną datę odcięcia w polu "knowledgeCutoff".
+251: 
+252: Odpowiedź musi być wyłącznie w formacie JSON zgodnym z podanym schematem. Pisz profesjonalnym, urzędowym, ale jasnym językiem polskim.`;
+253: 
+254:       const prompt = `Zbadaj wydatek:
+255: Wydatek użytkownika: "${query}"
+256: Informacje o działalności (KRS/PKD): "${krs}"
+257: Bieżący rok podatkowy: 2026
+258: 
+259: Oceniaj z perspektywy najnowszych interpretacji dyrektora KIS (Krajowej Informacji Skarbowej) oraz wyroków NSA (Naczelnego Sądu Administracyjnego). Pamiętaj o praktycznych przykładach (np. dla ubrań z logo, czy usług dla klientów).`;
+260: 
+261:       // 1. OLLAMA / LM STUDIO / OPENAI Compatible Dynamic Endpoint Routing
+262:       if (['ollama', 'lmstudio', 'openai', 'custom'].includes(provider)) {
+263:         let baseUrl = llmConfig.baseUrl || '';
+264:         if (provider === 'ollama' && !baseUrl) baseUrl = 'http://localhost:11434/v1';
+265:         if (provider === 'lmstudio' && !baseUrl) baseUrl = 'http://localhost:1234/v1';
+266:         if (provider === 'openai' && !baseUrl) baseUrl = 'https://api.openai.com/v1';
+267:         
+268:         if (baseUrl.endsWith('/')) baseUrl = baseUrl.slice(0, -1);
+269:         const url = `${baseUrl}/chat/completions`;
+270:         
+271:         const headers: Record<string, string> = {
+272:           'Content-Type': 'application/json'
+273:         };
+274:         
+275:         if (llmConfig.apiKey) {
+276:           headers['Authorization'] = `Bearer ${llmConfig.apiKey}`;
+277:         } else if (provider === 'openai') {
+278:           headers['Authorization'] = `Bearer ${process.env.OPENAI_API_KEY || ''}`;
+279:         }
+280: 
+281:         const modelName = llmConfig.model || (provider === 'openai' ? 'gpt-4o-mini' : 'llama3');
+282: 
+283:         const extendedPrompt = `${prompt}\n\nOdpowiedz WYŁĄCZNIE w formacie JSON o schemacie:\n{\n  "light": "green" lub "yellow" lub "red",\n  "category": "kategoria po polsku",\n  "vatDeductibility": "opis odliczenia VAT",\n  "citDeductibility": "opis odliczenia CIT",\n  "justification": "szczegółowe uzasadnienie prawne Art.15 CIT",\n  "accountingAdvice": "praktyczna pomoc dla księgowej",\n  "krsRelevance": "zbieżność z PKD architekta",\n  "knowledgeCutoff": "miesiąc i rok odcięcia Twojej wiedzy, np. 'styczeń 2025 r.'"\n}\nNie dodawaj żadnych cytatów, wstępów ani znaczników markdown \`\`\`json. Zwróć sam surowy obiekt JSON.`;
+284: 
+285:         const response = await fetch(url, {
+286:           method: 'POST',
+287:           headers,
+288:           body: JSON.stringify({
+289:             model: modelName,
+290:             messages: [
+291:               { role: 'system', content: systemInstruction },
+292:               { role: 'user', content: extendedPrompt }
+293:             ],
+294:             temperature: 0.1,
+295:             response_format: { type: 'json_object' }
+296:           })
+297:         });
+298: 
+299:         if (!response.ok) {
+300:           throw new Error(`Błąd HTTP ${response.status} od zewnętrznego dostawcy AI (${provider})`);
+301:         }
+302: 
+303:         const resData: any = await response.json();
+304:         const content = resData.choices?.[0]?.message?.content || '';
+305:         
+306:         const jsonStart = content.indexOf('{');
+307:         const jsonEnd = content.lastIndexOf('}');
+308:         if (jsonStart === -1 || jsonEnd === -1) {
+309:           throw new Error('Nie odnaleziono poprawnej struktury JSON w odpowiedzi od lokalnego modelu AI.');
+310:         }
+311:         const jsonStr = content.substring(jsonStart, jsonEnd + 1);
+312:         const parsed = JSON.parse(jsonStr);
+313:         
+314:         return res.json({
+315:           status: 'success',
+316:           data: parsed
+317:         });
+318:       }
+319: 
+320:       // 2. ANTHROPIC CLAUDE Dynamic Endpoint Routing
+321:       if (provider === 'anthropic') {
+322:         const apiKey = llmConfig.apiKey || process.env.ANTHROPIC_API_KEY || '';
+323:         const modelName = llmConfig.model || 'claude-3-5-sonnet-latest';
+324:         
+325:         const response = await fetch('https://api.anthropic.com/v1/messages', {
+326:           method: 'POST',
+327:           headers: {
+328:             'Content-Type': 'application/json',
+329:             'x-api-key': apiKey,
+330:             'anthropic-version': '2023-06-01'
+331:           },
+332:           body: JSON.stringify({
+333:             model: modelName,
+334:             max_tokens: 3000,
+335:             system: systemInstruction,
+336:             messages: [
+337:               { role: 'user', content: `${prompt}\n\nOdpowiedz WYŁĄCZNIE w formacie JSON o schemacie:\n{\n  "light": "green" lub "yellow" lub "red",\n  "category": "kategoria po polsku",\n  "vatDeductibility": "opis odliczenia VAT",\n  "citDeductibility": "opis odliczenia CIT",\n  "justification": "szczegółowe uzasadnienie prawne Art.15 CIT",\n  "accountingAdvice": "praktyczna pomoc dla księgowej",\n  "krsRelevance": "zbieżność z PKD architekta",\n  "knowledgeCutoff": "miesiąc i rok odcięcia Twojej wiedzy, np. 'styczeń 2025 r.'"\n}` }
+338:             ]
+339:           })
+340:         });
+341: 
+342:         if (!response.ok) {
+343:           throw new Error(`Błąd HTTP ${response.status} od dostawcy Anthropic API`);
+344:         }
+345: 
+346:         const resData: any = await response.json();
+347:         const content = resData.content?.[0]?.text || '';
+348:         
+349:         const jsonStart = content.indexOf('{');
+350:         const jsonEnd = content.lastIndexOf('}');
+351:         if (jsonStart === -1 || jsonEnd === -1) {
+352:           throw new Error('Nie odnaleziono poprawnej struktury JSON w odpowiedzi od Claude Anthropic.');
+353:         }
+354:         const jsonStr = content.substring(jsonStart, jsonEnd + 1);
+355:         const parsed = JSON.parse(jsonStr);
+356:         
+357:         return res.json({
+358:           status: 'success',
+359:           data: parsed
+360:         });
+361:       }
+362: 
+363:       // 3. GOOGLE GEMINI Dynamic Endpoint Routing / Default Fallback
+364:       if (provider === 'gemini' && isPlaceholderKey) {
+365:         const fallback = generateHeuristicTaxAdviserOffset(query, krs);
+366:         return res.json({
+367:           status: 'fallback',
+368:           message: 'Odpowiedź wygenerowana lokalnym algorytmem heurystycznym. Wprowadź poprawny klucz Gemini API w panelu Settings, aby odblokować pełną moc AI.',
+369:           data: fallback
+370:         });
+371:       }
+372: 
+373:       // Initialize official GenAI SDK as per gemini-api guidelines
+374:       const ai = new GoogleGenAI({
+375:         apiKey: effectiveApiKey,
+376:         httpOptions: {
+377:           headers: {
+378:             'User-Agent': 'aistudio-build',
+379:           }
+380:         }
+381:       });
+382: 
+383:       const activeModel = llmConfig?.model || 'gemini-3.5-flash';
+384: 
+385:       const response = await ai.models.generateContent({
+386:         model: activeModel,
+387:         contents: prompt,
+388:         config: {
+389:           systemInstruction: systemInstruction,
+390:           responseMimeType: 'application/json',
+391:           responseSchema: {
+392:             type: Type.OBJECT,
+393:             properties: {
+394:               light: { type: Type.STRING, description: "Status bezpieczeństwa. Dozwolone wartości: 'green', 'yellow', 'red'." },
+395:               category: { type: Type.STRING, description: "Kategoria kosztu." },
+396:               vatDeductibility: { type: Type.STRING, description: "Jak odliczamy podatek VAT z tego kosztu (np. 100%, 50%, brak)." },
+397:               citDeductibility: { type: Type.STRING, description: "Jak księgujemy w CIT (100% KUP, 75% KUP, wyłączony z KUP itp.)." },
+398:               justification: { type: Type.STRING, description: "Argument prawno-podatkowy wykazujący celowość kosztu, powołujący się na art. 15 ust. 1 ustawy o CIT." },
+399:               accountingAdvice: { type: Type.STRING, description: "Instrukcja rozmowy i weryfikacji z księgową. Wskazówki dokumentacyjne." },
+400:               krsRelevance: { type: Type.STRING, description: "Powiązanie kosztu z profilem architektonicznym z KRS użytkownika." },
+401:               knowledgeCutoff: { type: Type.STRING, description: "Miesiąc i rok odcięcia wiedzy modelu (np. 'październik 2024 r.')." }
+402:             },
+403:             required: ["light", "category", "vatDeductibility", "citDeductibility", "justification", "accountingAdvice", "krsRelevance", "knowledgeCutoff"]
+404:           }
+405:         }
+406:       });
+407: 
+408:       const responseText = response.text || '';
+409:       const parsedData = JSON.parse(responseText.trim());
+410: 
+411:       return res.json({
+412:         status: 'success',
+413:         data: parsedData
+414:       });
+415: 
+416:     } catch (error: any) {
+417:       console.error('Error in tax-adviser endpoint:', error);
+418:       const fallback = generateHeuristicTaxAdviserOffset(req.body.query || '', req.body.krs || '');
+419:       return res.json({
+420:         status: 'error_fallback',
+421:         message: `Wystąpił błąd po stronie serwera AI: ${error.message || error}. Zastąpiono lokalną rzetelną symulacją doradcy podatkowego.`,
+422:         data: fallback
+423:       });
+424:     }
+425:   });
+426: 
+427:   // Serve static UI assets under production, or let Vite process in development
+428:   if (process.env.NODE_ENV !== 'production') {
+429:     const vite = await createViteServer({
+430:       server: { middlewareMode: true },
+431:       appType: 'spa',
+432:     });
+433:     app.use(vite.middlewares);
+434:   } else {
+435:     const distPath = path.join(process.cwd(), 'dist');
+436:     app.use(express.static(distPath));
+437:     app.get('*', (req, res) => {
+438:       res.sendFile(path.join(distPath, 'index.html'));
+439:     });
+440:   }
+441: 
+442:   app.listen(PORT, '127.0.0.1', () => {
+443:     console.log(`Server active on port ${PORT}`);
+444:   });
+445: }
+446: 
+447:   });
+448: 
+449:   purchases.forEach(p => {
+450:     totalCost += p.netto;
+451:     if (p.kosztCIT) {
+452:       totalKUP += p.netto;
+453:     }
+454:     const cat = p.kategoria || 'Ogólne';
+455:     costScores[cat] = (costScores[cat] || 0) + p.netto;
+456:   });
+457: 
+458:   // Client concentration check
+459:   const sortedClients = Object.entries(clientScores).sort((a, b) => b[1] - a[1]);
+460:   const sortedCosts = Object.entries(costScores).sort((a, b) => b[1] - a[1]);
+461: 
+462:   const maxClientName = sortedClients[0]?.[0] || 'Inne przychody';
+463:   const maxClientVal = sortedClients[0]?.[1] || 0;
+464:   const clientConcentrationRatio = totalSales > 0 ? (maxClientVal / totalSales) * 100 : 0;
+465: 
+466:   // Build high quality strategic observations
+467:   const advantages = [
+468:     `Stabilne ustrukturyzowane źródła przychodu: Łączne fakturowanie netto w badanej próbie wynosi ${totalSales.toLocaleString('pl-PL')} zł.`,
+469:     `Zarządzanie odliczeniami podatkowymi: Spółka efektywnie księguje koszty jako KUP (${totalKUP.toLocaleString('pl-PL')} zł z ${totalCost.toLocaleString('pl-PL')} zł wszystkich kosztów), obniżając podstawę opodatkowania CIT.`
+470:   ];
+471: 
+472:   if (settings.stawkaCIT === 9) {
+473:     advantages.push('Preferencyjna stawka 9% CIT: Model zapewnia zgodność z warunkami małego podatnika (rocznie poniżej 2M EUR).');
+474:   } else {
+475:     advantages.push('Standardowy CIT 19%: Silne i dojrzałe ramy korporacyjne bez ograniczeń co do skali działalności.');
+476:   }
+477: 
+478:   const bottlenecks = [
+479:     totalKUP === 0 
+480:       ? 'Brak generowania kosztów KUP: Spółka nie posiada żadnych kosztów uzyskania przychodu, co powoduje bardzo wysoką, niepotrzebną ekspozycję na podatek CIT.' 
+481:       : 'Eksploatacja bazy kosztowej: Struktura kosztów wskazuje na znaczny udział kategorii o niskiej wartości dodanej, co ogranicza dźwignię operacyjną.'
+482:   ];
+483: 
+484:   if (clientConcentrationRatio > 40) {
+485:     bottlenecks.push(`Ryzyko skrajnej koncentracji przychodów: Kontrahent "${maxClientName}" generuje aż ${clientConcentrationRatio.toFixed(1)}% Twoich całościowych przychodów. Utrata tego kontraktu zdestabilizuje płynność spółki.`);
+486:   } else {
+487:     bottlenecks.push('Ryzyko dywersyfikacji: Niska bariera wejścia i rozproszony portfel klientów mogą generować dodatkowe koszty logistyczne i administracyjne.');
+488:   }
+489: 
+490:   if (totalSales > 0 && (totalCost / totalSales) > 0.85) {
+491:     bottlenecks.push('Bardzo wysoki wskaźnik kosztów do przychodów (CIR > 85%): Wysokie stałe wydatki operacyjne znacząco zawężają marżę operacyjną spółki.');
+492:   }
+493: 
+494:   // Populate dynamic McKinsey Matrix items
+495:   const mckinseyMatrix: any[] = [];
+496: 
+497:   // Clients mappings
+498:   sortedClients.forEach(([name, val]) => {
+499:     const isMajor = val > totalSales * 0.25;
+500:     const marketAttractiveness = isMajor ? 8 : 6;
+501:     const competitivePosition = isMajor ? 9 : 5;
+502:     
+503:     mckinseyMatrix.push({
+504:       name: `Klienci: ${name}`,
+505:       quadrant: isMajor ? 'Główny Lider wzrostu' : 'Segment do selektywnej obrony',
+506:       marketAttractivenessRating: marketAttractiveness,
+507:       competitivePositionRating: competitivePosition,
+508:       strategicGuidance: isMajor 
+509:         ? 'Najbardziej wartościowy kontrahent. Zapewnij długookresowy kontrakt i program lojalnościowy.' 
+510:         : 'Wspieraj relację, lecz unikaj dedytkowania dodatkowych stałych kosztów obsługi.',
+511:       type: 'przychod'
+512:     });
+513:   });
+514: 
+515:   // Adding Costs categories mappings
+516:   sortedCosts.forEach(([name, val]) => {
+517:     const isMajorCost = val > totalCost * 0.3;
+518:     const marketAttractiveness = isMajorCost ? 4 : 5;
+519:     const competitivePosition = isMajorCost ? 3 : 6;
+520: 
+521:     mckinseyMatrix.push({
+522:       name: `Koszty: ${name}`,
+523:       quadrant: isMajorCost ? 'Rygorystyczna optymalizacja' : 'Segment pod stałą kontrolą',
+524:       marketAttractivenessRating: marketAttractiveness,
+525:       competitivePositionRating: competitivePosition,
+526:       strategicGuidance: isMajorCost 
+527:         ? 'Wysoki poziom kosztów podkopuje zysk. Wymagana renegocjacja umów ramowych.' 
+528:         : 'Poziom akceptowalny, prowadź okresowy monitoring cen rynkowych alternatywnych dostawców.',
+529:       type: 'koszt'
+530:     });
+531:   });
+532: 
+533:   // Fallback summary
+534:   const summary = `Przegląd finansowy wskazuje na stabilne zręby rynkowe z obrotami rzędu ${totalSales.toLocaleString('pl-PL')} zł netto. Poziom optymalizacji CIT przez koszty uzyskania przychodów wynosi ${totalSales > 0 ? ((totalKUP / totalSales) * 100).toFixed(1) : '0'}% obrotu. McKinsey zaleca skoncentrowanie się na dywersyfikacji portfela przychodowego w celu złagodzenia ryzyka rynkowego, a także na wdrożeniu surowej dyscypliny w dużych kategoriach kosztów operacyjnych.`;
+535: 
+536:   return {
+537:     summary,
+538:     advantages,
+539:     bottlenecks,
+540:     mckinseyMatrix
+541:   };
+542: }
+543: 
+544: function generateHeuristicTaxAdviserOffset(query: string, krs: string) {
+545:   const result = generateHeuristicTaxAdviserOffsetRaw(query, krs);
+546:   return {
+547:     ...result,
+548:     knowledgeCutoff: 'styczeń 2025 r.'
+549:   };
+550: }
+551: 
+552: function generateHeuristicTaxAdviserOffsetRaw(query: string, krs: string) {
+553:   const normalized = query.toLowerCase().trim();
+554:   
+555:   if (normalized.includes('staging') || normalized.includes('rekwizyt') || normalized.includes('dekorac') || normalized.includes('wazon') || normalized.includes('narzut') || normalized.includes('pościel') || normalized.includes('obraz') || normalized.includes('sesja') || normalized.includes('zdjęc') || normalized.includes('fotograf') || normalized.includes('video') || normalized.includes('film') || normalized.includes('aparat')) {
+556:     return {
+557:       light: 'green',
+558:       category: 'Koszty Home Stagingu, Usług Fotograficznych i Portfolio',
+559:       vatDeductibility: '100% odliczenia podatku VAT. Zdjęcia reklamowe i przygotowanie wnętrza bezpośrednio służą reklamie realizowanych usług.',
+560:       citDeductibility: '100% KUP. Wydatki na marketing wizualny ukończonych projektów stanowią bezpośredni koszt uzyskania przychodu.',
+561:       justification: `Zgodnie z art. 15 ust. 1 ustawy o CIT, wydatki na zakup rekwizytów do Home Stagingu (takich jak wazony, narzuty, obrazy, oświetlenie pomocnicze) oraz na profesjonalne usługi fotografii i wideo zrealizowanych wnętrz/obiektów stanowią koszty działań marketingowo-reklamowych biura projektowego. Są one kluczowe do udokumentowania efektów pracy architekta w portfolio firmy, pozyskiwania kolejnych inwestorów oraz budowania silnej tożsamości rynkowej i świadomości marki pracowni.`,
+562:       accountingAdvice: `1. Opisz fakturę z adnotacją: "Zakup rekwizytów aranżacyjnych / usług fotograficznych na potrzeby sesji zdjęciowej ukończonego projektu wnętrza [Nazwa Inwestycji / Adres] celem umieszczenia w portfolio reklamowym biura i promocji w internecie".\n2. Rekwizyty trzymaj w pracowni i używaj ich wielokrotnie do kolejnych realizacji. Przechowuj zdjęcia z sesji jako doskonały dowód wykonania prac.\n3. Całość rozliczaj bezpośrednio w koszty operacyjne bez amortyzacji, o ile wartość pojedynczego rekwizytu (np. designerski fotel) nie przekracza 10 000 zł netto.`,
+563:       krsRelevance: `Pełna spójność. PKD 71.11.Z oraz PKD 74.10.Z (Specjalistyczne projektowanie) bezpośrednio opierają swój sukces rynkowy na estetycznej i rzetelnej prezentacji wcześniejszych dokonań. Sesje portfolio i Home Staging są rynkowym standardem budowania przewagi konkurencyjnej.`
+564:     };
+565:   }
+566: 
+567:   if (normalized.includes('próbnik') || normalized.includes('tynk') || normalized.includes('tkanin') || normalized.includes('plansz') || normalized.includes('makiety') || normalized.includes('model') || normalized.includes('prezentacj')) {
+568:     return {
+569:       light: 'green',
+570:       category: 'Materiały Prezentacyjne i Fizyczne Próbniki',
+571:       vatDeductibility: '100% odliczenia podatku VAT.',
+572:       citDeductibility: '100% KUP (zaliczenie bezpośrednie w bieżące koszty operacyjne).',
+573:       justification: `Zakup fizycznych próbek materiałowych (kamień, drewno, tynki elewacyjne, tkaniny, profile aluminiowe) oraz wydruków wielkoformatowych na sztywnych planszach piankowych służy rzetelnemu wykonaniu i uzgodnieniu projektu z inwestorem. Stanowi bezpośredni koszt operacyjny roboczych spotkań i koordynacji technicznej w myśl art. 15 ust. 1 ustawy o CIT, kluczowy dla eliminacji wad projektowych.`,
+574:       accountingAdvice: `1. Księgowa może bez problemu ująć to w koszty zużycia materiałów operacyjnych.\n2. Do faktury za wydruki wielkoformatowe lub plansze dołącz dopisek: "Wydruki plansz prezentacyjnych i makiet na spotkanie koordynacyjne z inwestorem w sprawie projektu [Nazwa Projektu]". Próbniki od podmiotów zewnętrznych mogą być fakturowane zbiorczo, dokumentując proces doboru materiałów wykończeniowych.`,
+575:       krsRelevance: `Ścisła zgodność z PKD 71.11.Z (Architektura) oraz PKD 71.12.Z (Inżynieria i doradztwo techniczne). Architekt w ramach obowiązków umownych dokonuje nadzorów autorskich i doradztwa w zakresie doboru certyfikowanych materiałów wykończeniowych.`
+576:     };
+577:   }
+578: 
+579:   if (normalized.includes('strona') || normalized.includes('www') || normalized.includes('seo') || normalized.includes('pozycjonowan') || normalized.includes('reklam') || normalized.includes('ads') || normalized.includes('facebook') || normalized.includes('instagram') || normalized.includes('pinterest') || normalized.includes('google ads')) {
+580:     return {
+581:       light: 'green',
+582:       category: 'Usługi Reklamowe i Marketing Internetowy',
+583:       vatDeductibility: '100% odliczenia VAT. W przypadku faktur od Meta/Google z Irlandii, należy rozliczyć Import Usług VAT ze stawką 23% naliczoną i należną simultanicznie (wymagany NIP z przedrostkiem PL w systemie VIES).',
+584:       citDeductibility: '100% KUP. Koszt stały reklamy i marketingu cyfrowego.',
+585:       justification: `Strona internetowa z galerią realizacji (portfolio), jej pozycjonowanie w wyszukiwarkach (SEO) oraz prowadzenie celowanych kampanii reklamowych w kanałach społecznościowych (Meta Ads, Pinterest, Google Ads) służą bezpośrednio pozyskiwaniu nowych zleceń projektowych na rzecz spółki (Art. 15 ust. 1 CIT). Wydatki te służą zachowaniu i zabezpieczeniu stałego źródła przychodów pracowni architektonicznej.`,
+586:       accountingAdvice: `1. Pamiętaj, aby podać swój NIP z przedrostkiem PL przy rejestracji kont reklamowych Google/Facebook/Pinterest. Faktury będą wystawiane bez zagranicznego VAT-u (odwrotne obciążenie), co księgowa rozliczy jako Import Usług.\n2. Przy opłatach za SEO zadbaj o dołączanie przez agencję comiesięcznego raportu z wykonanych prac pozycjonerskich i analityki ruchu. To wyklucza zarzut urzędu skarbowego o fikcyjność usług.`,
+587:       krsRelevance: `Pełna zgodność. Pozyskiwanie kontraktów projektowych premium i komercyjnych (deweloperskich) w PKD 71.11.Z opiera się współcześnie głównie na marketingu cyfrowym.`
+588:     };
+589:   }
+590: 
+591:   if (normalized.includes('dron') || normalized.includes('fotogrametri')) {
+592:     return {
+593:       light: 'green',
+594:       category: 'Specjalistyczny Sprzęt Techniczno-Inwentaryzacyjny',
+595:       vatDeductibility: '100% odliczenia podatku VAT.',
+596:       citDeductibility: '100% KUP (jednorazowo, jeśli wartość drona nie przekracza 10 000 zł netto, lub ratalnie przez odpisy amortyzacyjne w grupie 6 KŚT).',
+597:       justification: `Dron stanowi nowoczesne narzędzie inwentaryzacyjne, służące do mapowania terenu (fotogrametria 3D), analizy ukształtowania i nasłonecznienia parceli przed rozpoczęciem projektowania koncepcyjnego, a także do sporządzania precyzyjnej dokumentacji technicznej i foto/wideo dla celów obowiązkowego nadzoru autorskiego. Wydatek ten wprost realizuje przesłankę celowości z art. 15 ust. 1 ustawy o CIT.`,
+598:       accountingAdvice: `1. Kup drona na fakturę wystawioną na dane spółki.\n2. Zarejestruj drona w Urzędzie Lotnictwa Cywilnego (ULC) na dane firmy i opłać firmowe ubezpieczenie OC operatora drona (które w 100% stanowi KUP).\n3. Przechowuj ortofotomapy, chmury punktów oraz zdjęcia działek jako załącznik do projektów budowlanych w razie kontroli skarbówki dokumentującej realne wykorzystanie sprzętu technicznego w biurze.`,
+599:       krsRelevance: `Wysoka spójność. Zgodne z PKD 71.11.Z (Architektura) oraz PKD 71.12.Z (Inżynieria). Pozwala na szybkie pozyskanie danych geodezyjnych i wizualnych w trudnym terenie bez ponoszenia kosztów zewnętrznych podwykonawców.`
+600:     };
+601:   }
+602: 
+603:   if (normalized.includes('kaw') || normalized.includes('pij') || normalized.includes('jedz') || normalized.includes('restaurac') || normalized.includes('obiad') || normalized.includes('kawiarn') || normalized.includes('lunch') || normalized.includes('spotka') || normalized.includes('restor') || normalized.includes('kater') || normalized.includes('poczęst')) {
+604:     return {
+605:       light: 'yellow',
+606:       category: 'Spotkania z Klientami i Gastronomia',
+607:       vatDeductibility: 'Brak odliczenia VAT z faktur za tradycyjne usługi gastronomiczne (Art. 88 ust. 1 pkt 4 ustawy o VAT zabrania odliczania podatku od usług restauracyjnych). Wyjątkiem jest katering zamawiany do biura (np. przekąski na rzutnikową prezentację), od którego odliczysz 100% VAT.',
+608:       citDeductibility: '100% KUP. Możesz zaliczyć całą kwotę brutto z faktury restauracyjnej do kosztów uzyskania przychodów CIT, pod warunkiem wskazania, że celem spotkania było omówienie projektu architektonicznego, uzgodnienia umowne lub inwentaryzacje.',
+609:       justification: `Zakup usługi gastronomicznej w restauracji lub kawiarni w celu omówienia rzutów kondygnacji i założeń projektowych z inwestorem bezpośrednio wiąże się z PKD 71.11.Z oraz regulacją art. 15 ust. 1 ustawy o CIT. Wydatki te nie mają charakteru reprezentacji wystawnej, skrajnie luksusowej (która jest wyłączona na mocy art. 16 ust. 1 pkt 28 CIT), lecz są standardowymi, racjonalnymi kosztami ponoszonymi w toku negocjacji biznesowych mających na celu osiągnięcie oraz zabezpieczenie przychodów spółki.`,
+610:       accountingAdvice: `1. Poproś obsługę restauracji o fakturę VAT wystawioną bezpośrednio na Twoją spółkę z o.o.\n2. Wyjaśnij księgowej, że spotkanie miało charakter roboczo-negocjacyjny (ustalenia architektoniczne, dobór materiałów budowlanych), a nie wystawny bankiet.\n3. Napisz odręcznie na odwrocie faktury lub dołącz notatkę: "Spotkanie robocze z inwestorem [Imię / Nazwisko / Nazwa Firmy] w sprawie projektu budynku jednorodzinnego przy ul. X, celem zatwierdzenia fazy koncepcyjnej". To chroni koszt przed zakwalifikowaniem jako "reprezentacja wyłączona z KUP".`,
+611:       krsRelevance: `Wysoka spójność. Świadczenie usług projektowych w architekturze wymaga bezpośrednich konsultacji z inwestorami i podwykonawcami v celach koordynacji branżowej (konstrukcja, instalacje), co często odbywa się poza stałym biurem.`
+612:     };
+613:   }
+614: 
+615:   if (normalized.includes('ubran') || normalized.includes('odzie') || normalized.includes('buty') || normalized.includes('garnitur') || normalized.includes('kurtk') || normalized.includes('koszul') || normalized.includes('marynark') || normalized.includes('kask') || normalized.includes('kamizel')) {
+616:     const isBHP = normalized.includes('kask') || normalized.includes('kamizel') || normalized.includes('bhp') || normalized.includes('budow');
+617:     return {
+618:       light: isBHP ? 'green' : 'yellow',
+619:       category: isBHP ? 'Środki Ochrony Indywidualnej (BHP na budowie)' : 'Branded Apparel / Odzież Służbowa z Logo',
+620:       vatDeductibility: '100% odliczenia podatku VAT.',
+621:       citDeductibility: '100% KUP (Koszt Uzyskania Przychodu).',
+622:       justification: isBHP 
+623:         ? `Zakup kasku ochronnego, butów roboczych ze stalowym noskiem i kamizelki odblaskowej jest bezpośrednio wymagany przepisami prawa budowlanego i BHP podczas wykonywania nadzorów autorskich na czynnych placach budowy (art. 15 ust. 1 ustawy o CIT).`
+624:         : `Zakup odzieży codziennej (garnitur, koszula, polo) na potrzeby spółki architektonicznej stanowi koszt uzyskania przychodu tylko wtedy, gdy odzież ta zostanie trwale i widocznie opatrzona cechami charakterystycznymi marki (np. na stałe naszyte logo, wyhaftowane inicjały spółki). Taki zabieg pozbawia ubrania waloru osobistego, nadając im dominujący charakter reklamowo-reprezentacyjny (zgodny z art. 15 ust. 1 i art. 16 ust. 1 pkt 28 CIT).`,
+625:       accountingAdvice: isBHP
+626:         ? `1. Przekaż fakturę księgowej i zaznacz, że zakupiony sprzęt ochronny (kask, buty) był niezbędny do sprawowania prawnie narzuconego nadzoru autorskiego na budowie.\n2. Warto w historii transakcji zachować pisemne wezwanie od inwestora do wizytacji na placu budowy lub wpis w dziennik budowy.`
+627:         : `1. Upewnij się, że odzież została trwale znakowana (np. zleć haft komputerowy logo spółki na piersi marynarki lub koszuli).\n2. Pokaż księgowej dowód: fakturę za usługę znakowania (haftu) oraz zrób zdjęcie ubrania z widocznym logo. Uzasadnij, że jest to odzież wykorzystywana wyłącznie podczas prezentacji projektów dla kluczowych inwestorów w celu reprezentacji tożsamości korporacyjnej spółki.`,
+628:       krsRelevance: `Wysoka spójność. Architekt wykonujący nadzór autorski (PKD 71.11.Z) osobiście wizytuje place budowy, gdzie przepisy BHP wymagają zabezpieczenia ciała, a spotkania z deweloperami wymagają profesjonalnej tożsamości wizualnej marki.`
+629:     };
+630:   }
+631: 
+632:   if (normalized.includes('program') || normalized.includes('licencj') || normalized.includes('soft') || normalized.includes('autocad') || normalized.includes('revit') || normalized.includes('archicad') || normalized.includes('sketchup') || normalized.includes('adobe') || normalized.includes('windows') || normalized.includes('cad') || normalized.includes('blender') || normalized.includes('office') || normalized.includes('smet') || normalized.includes('midjourney') || normalized.includes('magnific') || normalized.includes('twinmotion') || normalized.includes('enscape') || normalized.includes('v-ray') || normalized.includes('lumion')) {
+633:     return {
+634:       light: 'green',
+635:       category: 'Narzędzia Specjalistyczne (Licencje, AI i SaaS)',
+636:       vatDeductibility: '100% odliczenia VAT (w przypadku zakupów z UE, np. Adobe/Autodesk/Midjourney, rozliczamy Import Usług z 23% VAT naliczonym i należnym jednocześnie).',
+637:       citDeductibility: '100% KUP (zaliczenie bezpośrednie lub przez amortyzację wartości niematerialnych i prawnych, jeżeli licencja roczna przekracza 10 000 zł i nadaje się do amortyzacji).',
+638:       justification: `Oprogramowanie do projektowania wspomaganego komputerowo (BIM/CAD), programy graficzne do renderingu i wizualizacji (Twinmotion, Lumion, V-Ray) oraz subskrypcje sztucznej inteligencji (AI np. Midjourney do tworzenia moodboardów) to podstawowe, nieodzowne narzędzia pracy w PKD 71.11.Z. Ich koszt kwalifikuje się bezdyskusyjnie na podstawie art. 15 ust. 1 ustawy o CIT jako służący celowi osiągnięcia i zachowania przychodów i bezpośrednio powiązany z nowoczesną działalnością projektową.`,
+639:       accountingAdvice: `1. Przekaż fakturę księgowej. Jeśli licencję zakupiono od podmiotu zagranicznego (np. faktura w EUR/USD z Irlandii od Adobe/Trimble/Autodesk czy USA od Midjourney), poinformuj ją, że to import usług.\n2. Upewnij się, że na fakturze widnieje Twój unijny numer NIP (NIP-UE z przedrostkiem PL). To zapobiegnie doliczeniu zagranicznego podatku VAT.`,
+640:       krsRelevance: `Pełna zgodność bezpośrednia. Brak profesjonalnego oprogramowania CAD/BIM/AI renderingowego uniemożliwia realizację współczesnej działalności sklasyfikowanej pod kodem PKD 71.11.Z.`
+641:     };
+642:   }
+643: 
+644:   if (normalized.includes('auto') || normalized.includes('samoch') || normalized.includes('paliw') || normalized.includes('leasing') || normalized.includes('napraw') || normalized.includes('ubezp') || normalized.includes('opon') || normalized.includes('ostrad') || normalized.includes('parking')) {
+645:     return {
+646:       light: 'green',
+647:       category: 'Eksploatacja i Leasing Pojazdów',
+648:       vatDeductibility: '50% odliczenia VAT w przypadku użytku mieszanego (prywatno-firmowego) lub 100% VAT jeśli prowadzona jest pełna ewidencja przebiegu pojazdu i zgłoszono formularz VAT-26 do Urzędu Skarbowego.',
+649:       citDeductibility: '75% KUP dla kosztów używania pojazdu mieszanego (naprawy, serwis, paliwo) oraz 150 000 zł / 225 000 zł limity odpisów leasingowych dla aut spalinowych/elektrycznych.',
+650:       justification: `Auto osobowe w firmie architektonicznej służy do szybkiego poruszania się na inwentaryzacje, spotkania z urzędami celem uzyskania pozwoleń na budowę oraz nadzory na rozproszonych placach budów. Wydatki paliwowe i eksploatacyjne stanowią uzasadnione uderzenie kosztowe chroniące realizację planów finansowych podmiotu.`,
+651:       accountingAdvice: `1. Poinformuj biuro rachunkowe o statusie pojazdu (większość przedsiębiorców korzysta z trybu mieszanego 50% VAT / 75% CIT, co nie wymaga uciążliwego rozpisywania kilometrówek).\n2. Zbierz faktury za opłaty autostradowe, parkingi na mieście przy wizytach u inwestorów i przekaż je zbiorczo. One również podlegają limitowi 75% KUP w trybie mieszanym.`,
+652:       krsRelevance: `Wysoka spójność. Architektura to praca w terenie, wymagająca mobilnego przemieszczania sprzętu pomiarowego oraz dojazdu do placów budowy rozlokowanych poza siedzibą spółki.`
+653:     };
+654:   }
+655: 
+656:   if (normalized.includes('ksiazk') || normalized.includes('literatur') || normalized.includes('albu') || normalized.includes('czasopi') || normalized.includes('magazyn') || normalized.includes('norm') || normalized.includes('eurokod') || normalized.includes('szkolen') || normalized.includes('kurs') || normalized.includes('konferencj')) {
+657:     return {
+658:       light: 'green',
+659:       category: 'Rozwój Kwalifikacji i Baza Literatury Fachowej',
+660:       vatDeductibility: '100% odliczenia VAT (lub stawka obniżona 5%/8% dla książek drukowanych/prasy).',
+661:       citDeductibility: '100% KUP. Koszt zaliczany bezpośrednio.',
+662:       justification: `Zgodnie z art. 15 ust. 1 ustawy o CIT, ciągłe podnoszenie kwalifikacji, znajomość najnowszych dynamicznie zmieniających się norm budowlanych (Eurokody), prawa budowlanego oraz śledzenie trendów światowej architektury przy pomocy czasopism specjalistycznych bezpośrednio wpływa na konkurencyjność projektów i zabezpiecza przed wadami prawno-konstrukcyjnymi, co pozwala spółce zachować nienaruszone źródło przychodów.`,
+663:       accountingAdvice: `1. Fakturę za zakup książek, albumów o designie, subskrypcji czasopism czy szkoleń (np. z oprogramowania Revit, przepisów prawa) daj księgowej.\n2. Jeśli to szkolenie z certyfikatem imiennym dla pracownika lub członka zarządu, ugruntuj celowość – szkolenie poprawia jakość wykonywanych rzutów architektonicznych w biurze.`,
+664:       krsRelevance: `Spójne z zawodem zaufania publicznego. Architekt ma prawny i etyczny obowiązek tworzenia obiektów bezpiecznych, zgodnych z najnowszymi warunkami technicznymi i normami budownictwa.`
+665:     };
+666:   }
+667: 
+668:   if (normalized.includes('ekspres') || normalized.includes('mebl') || normalized.includes('biurk') || normalized.includes('fote') || normalized.includes('drzw') || normalized.includes('krzes') || normalized.includes('lamp') || normalized.includes('rezerw')) {
+669:     return {
+670:       light: 'green',
+671:       category: 'Wyposażenie Pracowni i Ergonomia',
+672:       vatDeductibility: '100% odliczenia podatku VAT.',
+673:       citDeductibility: '100% KUP (dla jednorazowych zakupów poniżej 10 050 zł netto).',
+674:       justification: `Zakup wysokiej jakości mebli biurowych, ergonomicznego fotela do wielogodzinnej pracy przy projektach oraz ekspresu do kawy do serwowania poczęstunku klientom odwiedzającym pracownię architektoniczną jest w pełni uzasadniony. Poprawia ergonomię pracy oraz kreuje profesjonalny wizerunek spółki, co ułatwia pozyskiwanie lukratywnych kontraktów (art. 15 ust. 1 ustawy o CIT).`,
+675:       accountingAdvice: `1. Faktury za meble, lampy kreślarskie czy ekspres do kawy oddaj księgowej.\n2. Wytłumacz, że ekspres jest udostępniony w pracowni, gdzie spotykasz się z klientami w celu prezentacji fizycznych makiet budynków – kawa podawana deweloperom wspiera budowanie zaufania handlowego i stanowi koszt ogólnozakładowy wspierający sprzedaż (reklama/BHP).`,
+676:       krsRelevance: `Bardzo wysoka spójność. Pracownia architektoniczna to wizytówka twórcy - estetyczne, ergonomiczne meble i poczęstunek dla klientów budują wizerunek biura projektowego klasy premium.`
+677:     };
+678:   }
+679: 
+680:   // General default fallback
+681:   return {
+682:     light: 'yellow',
+683:     category: 'Koszty Operacyjne Wspierające Biznes',
+684:     vatDeductibility: 'Zazwyczaj 100% odliczenia (o ile koszt nie dotyczy zakwaterowania ani usług gastronomicznych, na które nałożono ustawowe wyłączenia).',
+685:     citDeductibility: 'Zazwyczaj 100% KUP, o ile wykazana zostanie celowość i wpływ na generowanie przychodu w spółce z o.o.',
+686:     justification: `Wydatek ten, choć ma charakter ogólny, przyczynia się do zachowania sprawności operacyjnej biura projektowego i personelu technicznego, co zabezpiecza poprawną realizację umów i terminowość projektów v myśl art. 15 ust. 1 ustawy o CIT.`,
+687:     accountingAdvice: `1. Zachowaj fakturę VAT prawidłowo wystawioną na pełną nazwę i NIP Twojej spółki z o.o.\n2. Upewnij się, że potrafisz krótko opisać księgowej logiczny związek tego zakupu ze sprawami firmy (np. 'dostęp do szybkiego internetu pozwala na transferowanie ciężkich plików projektowych CAD o rozmiarach setek megabajtów na serwery klienta').`,
+688:     krsRelevance: `Spójne z ogólnymi kosztami administracyjno-operacyjnymi niezbędnymi dla utrzymania spółki z o.o. w gotowości do fakturowania usług projektowych z zakresu architektury.`
+689:   };
+690: }
+691: 
+692: startServer();
+693: 

@@ -582,7 +582,7 @@ export default function ExcelImportModal({
                               value={mapping.data}
                               onChange={(e) => handleMappingFieldChange('data', e.target.value)}
                             >
-                              <option value="">-- wybierz kolumnę --</option>
+                              <option value="">-- pomiń i nic nie wpisuj --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -596,7 +596,7 @@ export default function ExcelImportModal({
                               value={mapping.numerFaktury}
                               onChange={(e) => handleMappingFieldChange('numerFaktury', e.target.value)}
                             >
-                              <option value="">-- wybierz kolumnę --</option>
+                              <option value="">-- pomiń i nic nie wpisuj --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -610,7 +610,7 @@ export default function ExcelImportModal({
                               value={mapping.kontrahent}
                               onChange={(e) => handleMappingFieldChange('kontrahent', e.target.value)}
                             >
-                              <option value="">-- wybierz kolumnę (opcjonalne) --</option>
+                              <option value="">-- pomiń i nic nie wpisuj --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -624,7 +624,7 @@ export default function ExcelImportModal({
                               value={mapping.netto}
                               onChange={(e) => handleMappingFieldChange('netto', e.target.value)}
                             >
-                              <option value="">-- wybierz kolumnę --</option>
+                              <option value="">-- pomiń i nic nie wpisuj --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -638,7 +638,7 @@ export default function ExcelImportModal({
                               value={mapping.stawkaVat}
                               onChange={(e) => handleMappingFieldChange('stawkaVat', e.target.value)}
                             >
-                              <option value="">-- wybierz kolumnę (domyślna 23%) --</option>
+                              <option value="">-- pomiń i nic nie wpisuj (domyślnie 23%) --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -652,7 +652,7 @@ export default function ExcelImportModal({
                               value={mapping.vat}
                               onChange={(e) => handleMappingFieldChange('vat', e.target.value)}
                             >
-                              <option value="">-- wybierz lub oblicz automatycznie --</option>
+                              <option value="">-- pomiń i nic nie wpisuj (oblicz automatycznie) --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -666,7 +666,7 @@ export default function ExcelImportModal({
                               value={mapping.czyCIT}
                               onChange={(e) => handleMappingFieldChange('czyCIT', e.target.value)}
                             >
-                              <option value="">-- domyślnie TAK --</option>
+                              <option value="">-- pomiń i nic nie wpisuj (domyślnie TAK) --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -680,7 +680,7 @@ export default function ExcelImportModal({
                               value={mapping.czyVAT}
                               onChange={(e) => handleMappingFieldChange('czyVAT', e.target.value)}
                             >
-                              <option value="">-- domyślnie TAK --</option>
+                              <option value="">-- pomiń i nic nie wpisuj (domyślnie TAK) --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -699,7 +699,7 @@ export default function ExcelImportModal({
                               value={mapping.data}
                               onChange={(e) => handleMappingFieldChange('data', e.target.value)}
                             >
-                              <option value="">-- wybierz kolumnę --</option>
+                              <option value="">-- pomiń i nic nie wpisuj --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -713,7 +713,7 @@ export default function ExcelImportModal({
                               value={mapping.numerFaktury}
                               onChange={(e) => handleMappingFieldChange('numerFaktury', e.target.value)}
                             >
-                              <option value="">-- wybierz kolumnę --</option>
+                              <option value="">-- pomiń i nic nie wpisuj --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -727,7 +727,7 @@ export default function ExcelImportModal({
                               value={mapping.dostawca}
                               onChange={(e) => handleMappingFieldChange('dostawca', e.target.value)}
                             >
-                              <option value="">-- wybierz kolumnę (opcjonalne) --</option>
+                              <option value="">-- pomiń i nic nie wpisuj --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -741,7 +741,7 @@ export default function ExcelImportModal({
                               value={mapping.kategoria}
                               onChange={(e) => handleMappingFieldChange('kategoria', e.target.value)}
                             >
-                              <option value="">-- wybierz lub domyślna 'Inne' --</option>
+                              <option value="">-- pomiń i nic nie wpisuj (domyślnie 'Inne') --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -755,7 +755,7 @@ export default function ExcelImportModal({
                               value={mapping.netto}
                               onChange={(e) => handleMappingFieldChange('netto', e.target.value)}
                             >
-                              <option value="">-- wybierz kolumnę --</option>
+                              <option value="">-- pomiń i nic nie wpisuj --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -769,7 +769,7 @@ export default function ExcelImportModal({
                               value={mapping.stawkaVat}
                               onChange={(e) => handleMappingFieldChange('stawkaVat', e.target.value)}
                             >
-                              <option value="">-- wybierz lub domyślna 23% --</option>
+                              <option value="">-- pomiń i nic nie wpisuj (domyślnie 23%) --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -783,7 +783,7 @@ export default function ExcelImportModal({
                               value={mapping.vat}
                               onChange={(e) => handleMappingFieldChange('vat', e.target.value)}
                             >
-                              <option value="">-- wybierz lub oblicz automatycznie --</option>
+                              <option value="">-- pomiń i nic nie wpisuj (oblicz automatycznie) --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -797,7 +797,7 @@ export default function ExcelImportModal({
                               value={mapping.kosztCIT}
                               onChange={(e) => handleMappingFieldChange('kosztCIT', e.target.value)}
                             >
-                              <option value="">-- domyślnie TAK --</option>
+                              <option value="">-- pomiń i nic nie wpisuj (domyślnie TAK) --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -811,7 +811,7 @@ export default function ExcelImportModal({
                               value={mapping.odliczenieVat}
                               onChange={(e) => handleMappingFieldChange('odliczenieVat', e.target.value)}
                             >
-                              <option value="">-- domyślnie 100% --</option>
+                              <option value="">-- pomiń i nic nie wpisuj (domyślnie 100%) --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -830,7 +830,7 @@ export default function ExcelImportModal({
                               value={mapping.miesiac}
                               onChange={(e) => handleMappingFieldChange('miesiac', e.target.value)}
                             >
-                              <option value="">-- wybierz kolumnę --</option>
+                              <option value="">-- pomiń i nic nie wpisuj --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -844,7 +844,7 @@ export default function ExcelImportModal({
                               value={mapping.kwota}
                               onChange={(e) => handleMappingFieldChange('kwota', e.target.value)}
                             >
-                              <option value="">-- wybierz kolumnę --</option>
+                              <option value="">-- pomiń i nic nie wpisuj --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -858,7 +858,7 @@ export default function ExcelImportModal({
                               value={mapping.dataZaplaty}
                               onChange={(e) => handleMappingFieldChange('dataZaplaty', e.target.value)}
                             >
-                              <option value="">-- wybierz kolumnę (opcjonalne) --</option>
+                              <option value="">-- pomiń i nic nie wpisuj --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -872,7 +872,7 @@ export default function ExcelImportModal({
                               value={mapping.notatka}
                               onChange={(e) => handleMappingFieldChange('notatka', e.target.value)}
                             >
-                              <option value="">-- wybierz kolumnę (opcjonalne) --</option>
+                              <option value="">-- pomiń i nic nie wpisuj --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -891,7 +891,7 @@ export default function ExcelImportModal({
                               value={mapping.miesiac}
                               onChange={(e) => handleMappingFieldChange('miesiac', e.target.value)}
                             >
-                              <option value="">-- wybierz kolumnę --</option>
+                              <option value="">-- pomiń i nic nie wpisuj --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -905,7 +905,7 @@ export default function ExcelImportModal({
                               value={mapping.vatNalezny}
                               onChange={(e) => handleMappingFieldChange('vatNalezny', e.target.value)}
                             >
-                              <option value="">-- wybierz kolumnę (opcjonalne) --</option>
+                              <option value="">-- pomiń i nic nie wpisuj --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -919,7 +919,7 @@ export default function ExcelImportModal({
                               value={mapping.vatNaliczony}
                               onChange={(e) => handleMappingFieldChange('vatNaliczony', e.target.value)}
                             >
-                              <option value="">-- wybierz kolumnę (opcjonalne) --</option>
+                              <option value="">-- pomiń i nic nie wpisuj --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -933,7 +933,7 @@ export default function ExcelImportModal({
                               value={mapping.nadwyzkaZPoprzedniego}
                               onChange={(e) => handleMappingFieldChange('nadwyzkaZPoprzedniego', e.target.value)}
                             >
-                              <option value="">-- wybierz kolumnę --</option>
+                              <option value="">-- pomiń i nic nie wpisuj --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>
@@ -947,7 +947,7 @@ export default function ExcelImportModal({
                               value={mapping.korektyVat}
                               onChange={(e) => handleMappingFieldChange('korektyVat', e.target.value)}
                             >
-                              <option value="">-- wybierz kolumnę --</option>
+                              <option value="">-- pomiń i nic nie wpisuj --</option>
                               {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
                             </select>
                           </td>

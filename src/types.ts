@@ -4,6 +4,7 @@ export interface CompanySettings {
   stawkaCIT: 9 | 19; // Polish CIT rate: 9% (small taxpayer) or 19% (standard)
   rokPodatkowy: number;
   miesiacPodatkowy: number; // 1 = January, 12 = December
+  customLogoBase64?: string; // Client's custom uploaded logo (base64)
 }
 
 export interface SaleTransaction {

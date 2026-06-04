@@ -754,7 +754,7 @@ export default function PdfExportModal({ state, activeTab, onClose }: PdfExportM
           </div>
 
           <div className="text-[10px] text-slate-400 text-center font-mono pt-4 select-none">
-            Symulator Podatkowy v2.4.0
+            Symulator Podatkowy v2.0
           </div>
         </div>
       </div>

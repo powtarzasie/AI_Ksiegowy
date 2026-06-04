@@ -47,6 +47,8 @@ export default function StorageControls({
   
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [showDeleteDbConfirm, setShowDeleteDbConfirm] = useState<boolean>(false);
+  const [showClearAllConfirm, setShowClearAllConfirm] = useState<boolean>(false);
 
   // Read LLM config with fallback
   const currentLlmConfig = state.llmConfig || {
@@ -70,27 +72,52 @@ export default function StorageControls({
   const [dbPath, setDbPath] = useState<string>('');
   const [defaultPath, setDefaultPath] = useState<string>('');
   const [dbExists, setDbExists] = useState<boolean>(false);
+  const [dbSize, setDbSize] = useState<number | null>(null);
+  const [dbModified, setDbModified] = useState<string | null>(null);
   const [moveData, setMoveData] = useState<boolean>(false);
   const [isDbUpdating, setIsDbUpdating] = useState<boolean>(false);
+  const [showLocationSettings, setShowLocationSettings] = useState<boolean>(false);
+  
+  const [backupsList, setBackupsList] = useState<{name: string, date: string, size: number}[]>([]);
+  const [isCreatingBackup, setIsCreatingBackup] = useState<boolean>(false);
+  const [restoreConfirmFile, setRestoreConfirmFile] = useState<string | null>(null);
+
+  const fetchBackups = async () => {
+    try {
+      const response = await fetch('/api/db/backups');
+      if (response.ok) {
+        const resJson = await response.json();
+        if (resJson.status === 'success') {
+          setBackupsList(resJson.backups);
+        }
+      }
+    } catch(err) {
+      console.warn('Nie można pobrać listy kopii:', err);
+    }
+  };
+
+  const fetchDbConfig = async () => {
+    try {
+      const response = await fetch('/api/db/config');
+      if (response.ok) {
+        const resJson = await response.json();
+        if (resJson.status === 'success') {
+          setDbPath(resJson.dbPath);
+          setDefaultPath(resJson.defaultPath);
+          setDbExists(resJson.exists);
+          setDbSize(resJson.size !== undefined ? resJson.size : null);
+          setDbModified(resJson.modified !== undefined ? resJson.modified : null);
+        }
+      }
+    } catch (err) {
+      console.warn('Nie można pobrać ścieżki konfiguracji bazy (brak serwera lokalnego):', err);
+    }
+  };
 
   // Fetch current database configuration on mount
   React.useEffect(() => {
-    const fetchDbConfig = async () => {
-      try {
-        const response = await fetch('/api/db/config');
-        if (response.ok) {
-          const resJson = await response.json();
-          if (resJson.status === 'success') {
-            setDbPath(resJson.dbPath);
-            setDefaultPath(resJson.defaultPath);
-            setDbExists(resJson.exists);
-          }
-        }
-      } catch (err) {
-        console.warn('Nie można pobrać ścieżki konfiguracji bazy (brak serwera lokalnego):', err);
-      }
-    };
     fetchDbConfig();
+    fetchBackups();
   }, []);
 
   const handleUpdateDbPath = async (customPath?: string) => {
@@ -119,6 +146,8 @@ export default function StorageControls({
           if (resJson.data) {
             onStateImport(resJson.data);
           }
+          await fetchDbConfig();
+          await fetchBackups();
         } else {
           triggerNotification(resJson.error || 'Błąd zapisu ścieżki bazy.', true);
         }
@@ -130,6 +159,110 @@ export default function StorageControls({
       triggerNotification('Nie udało się zapisać lokalizacji bazy (brak serwera).', true);
     } finally {
       setIsDbUpdating(false);
+    }
+  };
+
+  const handleRevealFolder = async () => {
+    try {
+      const response = await fetch('/api/db/reveal', { method: 'POST' });
+      if (response.ok) {
+        const resJson = await response.json();
+        if (resJson.status === 'success') {
+          triggerNotification('Otwieranie folderu...', false);
+        } else {
+          triggerNotification(resJson.error || 'Nie udało się otworzyć folderu.', true);
+        }
+      } else {
+        triggerNotification('Lokalny serwer zwrócił błąd.', true);
+      }
+    } catch (err) {
+      triggerNotification('Nie można otworzyć folderu (brak połączenia z serwerem).', true);
+    }
+  };
+
+  const handleDeleteDb = () => {
+    setShowDeleteDbConfirm(true);
+  };
+
+  const executeDeleteDb = async () => {
+    setShowDeleteDbConfirm(false);
+    try {
+      const response = await fetch('/api/db', { method: 'DELETE' });
+      if (response.ok) {
+        const resJson = await response.json();
+        if (resJson.status === 'success') {
+          triggerNotification('Plik bazy danych został pomyślnie usunięty z dysku.');
+          onStateClear();
+          await fetchDbConfig();
+        } else {
+          triggerNotification(resJson.error || 'Błąd usuwania pliku bazy.', true);
+        }
+      } else {
+        triggerNotification('Serwer zwrócił błąd podczas usuwania bazy danych.', true);
+      }
+    } catch (err) {
+      triggerNotification('Nie udało się usunąć bazy danych (brak połączenia).', true);
+    }
+  };
+
+  const handleCreateBackup = async () => {
+    setIsCreatingBackup(true);
+    try {
+      const response = await fetch('/api/db/backup', { method: 'POST' });
+      const resJson = await response.json();
+      if (response.ok && resJson.status === 'success') {
+        triggerNotification('Kopia zapasowa została utworzona pomyślnie!');
+        await fetchBackups();
+      } else {
+        triggerNotification(resJson.error || 'Błąd tworzenia kopii.', true);
+      }
+    } catch (err) {
+      triggerNotification('Nie udało się utworzyć kopii zapasowej.', true);
+    } finally {
+      setIsCreatingBackup(false);
+    }
+  };
+
+  const handleRestoreConfirm = (fileName: string) => {
+    setRestoreConfirmFile(fileName);
+  };
+
+  const executeRestoreBackup = async () => {
+    if (!restoreConfirmFile) return;
+    try {
+      const response = await fetch('/api/db/restore', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: restoreConfirmFile })
+      });
+      const resJson = await response.json();
+      if (response.ok && resJson.status === 'success') {
+        triggerNotification(`Pomyślnie przywrócono stan z kopii zapasowej.`);
+        onStateImport(resJson.data);
+        setRestoreConfirmFile(null);
+        await fetchDbConfig();
+      } else {
+        triggerNotification(resJson.error || 'Błąd przywracania kopii.', true);
+      }
+    } catch(err) {
+      triggerNotification('Błąd połączenia z serwerem.', true);
+    }
+  };
+
+  const formatBytes = (bytes: number | null) => {
+    if (bytes === null) return 'brak danych';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(2)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  const formatDate = (isoString: string | null) => {
+    if (!isoString) return 'brak zapisu';
+    try {
+      const d = new Date(isoString);
+      return d.toLocaleString('pl-PL');
+    } catch (e) {
+      return isoString;
     }
   };
 
@@ -430,10 +563,13 @@ export default function StorageControls({
   };
 
   const handleClearConfirm = () => {
-    if (window.confirm('Czy na pewno chcesz usunąć wszystkie transakcje, dane VAT, zaliczki i ustawienia? Ta operacja jest nieodwracalna, jeśli nie posiadasz kopii zapasowej Excel.')) {
-      onStateClear();
-      triggerNotification('Wszystkie dane zostały trwale wyczyszczone.');
-    }
+    setShowClearAllConfirm(true);
+  };
+
+  const executeClearAll = () => {
+    setShowClearAllConfirm(false);
+    onStateClear();
+    triggerNotification('Wszystkie dane zostały trwale wyczyszczone.');
   };
 
   // Filter logs based on selection
@@ -446,28 +582,28 @@ export default function StorageControls({
     : [];
 
   return (
-    <div className="bg-white rounded-3xl shadow-xs border border-slate-200 p-6 space-y-6" id="storage-controls-card">
+    <div className="bg-white rounded-3xl shadow-xs border border-slate-200 p-5 space-y-4" id="storage-controls-card">
       {/* Title block */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-4 gap-3">
-        <div className="flex items-center gap-3">
-          <Database className="w-5.5 h-5.5 text-indigo-600" />
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b border-slate-100 pb-3 gap-2">
+        <div className="flex items-center gap-2">
+          <Database className="w-5 h-5 text-indigo-600" />
           <div>
-            <h2 className="text-base font-bold text-slate-900 tracking-tight font-display">
+            <h2 className="text-sm font-bold text-slate-900 tracking-tight font-display">
               Zarządzanie Pamięcią, Kopia i Synchronizacja
             </h2>
-            <p className="text-[11px] text-slate-500">Przenoszenie danych między urządzeniami i dbanie o trwałość danych spółki.</p>
+            <p className="text-[10px] text-slate-500">Przenoszenie danych między urządzeniami i dbanie o trwałość danych spółki.</p>
           </div>
         </div>
         <div className="flex gap-2">
           {successMsg && (
-            <span className="text-xs text-emerald-800 bg-emerald-50 px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-1.5 border border-emerald-100 animate-pulse">
-              <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />
+            <span className="text-[10px] text-emerald-800 bg-emerald-50 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 border border-emerald-100 animate-pulse">
+              <CheckCircle className="w-3 h-3 text-emerald-600" />
               {successMsg}
             </span>
           )}
           {errorMsg && (
-            <span className="text-xs text-rose-800 bg-rose-50 px-3.5 py-1.5 rounded-xl font-bold flex items-center gap-1.5 border border-rose-100 animate-shake">
-              <AlertTriangle className="w-3.5 h-3.5 text-rose-600" />
+            <span className="text-[10px] text-rose-800 bg-rose-50 px-2.5 py-1 rounded-lg font-bold flex items-center gap-1 border border-rose-100 animate-shake">
+              <AlertTriangle className="w-3 h-3 text-rose-600" />
               {errorMsg}
             </span>
           )}
@@ -475,10 +611,10 @@ export default function StorageControls({
       </div>
 
       {/* Safety info panels */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="p-4 bg-amber-50/70 border border-amber-150 rounded-2xl space-y-1.5 text-amber-950 text-[11px]">
-          <span className="font-bold flex items-center gap-1.5 text-amber-800 uppercase tracking-wider text-[9px]">
-            <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-35">
+        <div className="p-3 bg-amber-50/70 border border-amber-150 rounded-xl space-y-1 text-[10.5px] text-amber-950">
+          <span className="font-bold flex items-center gap-1 text-amber-800 uppercase tracking-wider text-[8px]">
+            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
             Lokalna Enklawa Bezpieczeństwa
           </span>
           <p className="leading-relaxed text-amber-900/90 text-justify">
@@ -486,9 +622,9 @@ export default function StorageControls({
           </p>
         </div>
 
-        <div className="p-4 bg-indigo-50/40 border border-indigo-150 rounded-2xl space-y-1.5 text-indigo-950 text-[11px]">
-          <span className="font-bold flex items-center gap-1.5 text-indigo-900 uppercase tracking-wider text-[9px]">
-            <ShieldCheck className="w-4 h-4 text-indigo-600 shrink-0" />
+        <div className="p-3 bg-indigo-50/40 border border-indigo-150 rounded-xl space-y-1 text-[10.5px] text-indigo-950">
+          <span className="font-bold flex items-center gap-1 text-indigo-900 uppercase tracking-wider text-[8px]">
+            <ShieldCheck className="w-3.5 h-3.5 text-indigo-600 shrink-0" />
             Autonomia i Bezpieczeństwo Skarbowe
           </span>
           <p className="leading-relaxed text-indigo-900/80 text-justify">
@@ -498,145 +634,269 @@ export default function StorageControls({
       </div>
 
       {/* TWO SECTIONS: desktop shell info and LLM connection configuration */}
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pt-2">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-5 pt-1">
         {/* Card 1 & 3: Left Column Container (5 columns) */}
-        <div className="lg:col-span-5 flex flex-col gap-6">
+        <div className="lg:col-span-5 flex flex-col gap-5">
           {/* Card 1: Desktop Shell Status & Guidelines */}
-          <div className="border border-slate-200 bg-slate-50/80 rounded-2xl p-5 space-y-4 flex-1 flex flex-col justify-between" id="local-env-shell-card">
-            <div className="space-y-4">
-              <div className="flex items-center gap-2">
-                <Laptop className="w-5 h-5 text-indigo-600 shrink-0" />
-                <h3 className="font-bold text-slate-900 text-sm font-display tracking-tight">Tryb Środowiska Lokalnego</h3>
+          <div className="border border-slate-200 bg-slate-50/80 rounded-xl p-4 space-y-3.5 flex-1 flex flex-col justify-between" id="local-env-shell-card">
+            <div className="space-y-3">
+              <div className="flex items-center gap-1.5">
+                <Laptop className="w-4 h-4 text-indigo-600 shrink-0" />
+                <h3 className="font-bold text-slate-900 text-xs font-display tracking-tight">Tryb Środowiska Lokalnego</h3>
               </div>
               
               {/* Dynamic Electron Connection Detection */}
-              <div className={`p-4 rounded-xl border flex items-start gap-3 ${
+              <div className={`p-3 rounded-lg border flex items-start gap-2 ${
                 isElectron 
                   ? 'bg-emerald-50 border-emerald-200 text-emerald-950' 
                   : 'bg-slate-100 border-slate-200 text-slate-800'
               }`}>
-                <div className={`w-2.5 h-2.5 rounded-full mt-1.5 ${isElectron ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
-                <div className="text-xs space-y-1">
-                  <span className="font-bold block tracking-wide uppercase text-[10px]">
+                <div className={`w-2 h-2 rounded-full mt-1 ${isElectron ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`} />
+                <div className="text-[11px] space-y-0.5">
+                  <span className="font-bold block tracking-wide uppercase text-[9px]">
                     {isElectron ? 'AKTYWNY: PROGRAM DESKTOP (ELECTRON)' : 'DETEKCJA: TRYB PRZEGLĄDARKI WEB'}
                   </span>
-                  <p className="text-slate-650 text-[11px] leading-relaxed text-slate-500">
+                  <p className="leading-relaxed text-slate-500 text-[10px]">
                     {isElectron 
                       ? 'Wykryto powłokę Electron! Zapis fizyczny JSON bezpośrednio na Twoim dysku komputera jest w pełni gotowy.' 
-                      : 'Aplikacja działa w chmurze / sandboxie przeglądarki. Dane transakcyjne są odizolowane i zapisywane w LocalStorage.'
+                      : 'Aplikacja działa w chmurze / sandboxie przeglądarki. Dane są zapisywane w LocalStorage.'
                     }
                   </p>
                 </div>
               </div>
 
-              <div className="space-y-3">
-                <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">Kroki kompilacji lokalnej (Claude Code):</span>
-                <div className="space-y-2.5 text-[11px] text-slate-600 leading-relaxed font-sans">
-                  <div className="flex gap-2">
-                    <span className="w-5 h-5 bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 rounded-md flex items-center justify-center shrink-0 text-[10px]">1</span>
-                    <p><strong>Pobierz kod z GitHub:</strong> Sklonuj repozytorium na swój lokalny komputer.</p>
+              <div className="space-y-2">
+                <span className="text-[9px] uppercase font-bold text-slate-400 tracking-wider block">Kroki kompilacji lokalnej (Claude Code):</span>
+                <div className="space-y-1.5 text-[10.5px] text-slate-600 leading-relaxed font-sans">
+                  <div className="flex gap-1.5">
+                    <span className="w-4 h-4 bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 rounded flex items-center justify-center shrink-0 text-[9px]">1</span>
+                    <p>Sklonuj repozytorium na komputer.</p>
                   </div>
-                  <div className="flex gap-2">
-                    <span className="w-5 h-5 bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 rounded-md flex items-center justify-center shrink-0 text-[10px]">2</span>
-                    <p><strong>Wydaj polecenie:</strong> Poproś Claude Code:<br />
-                    <code className="bg-slate-200 border border-slate-300 font-mono text-[9.5px] px-1 py-0.5 rounded text-indigo-700 block mt-1 tracking-tight">"Skompiluj tę aplikację z Electronem do pliku .exe dla Windows"</code></p>
+                  <div className="flex gap-1.5">
+                    <span className="w-4 h-4 bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 rounded flex items-center justify-center shrink-0 text-[9px]">2</span>
+                    <p>Wpisz polecenie w Claude Code:<br />
+                    <code className="bg-slate-200 border border-slate-300 font-mono text-[9px] px-1 py-0.5 rounded text-indigo-700 block mt-0.5 tracking-tight">"Skompiluj tę aplikację z Electronem do pliku .exe dla Windows"</code></p>
                   </div>
-                  <div className="flex gap-2">
-                    <span className="w-5 h-5 bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 rounded-md flex items-center justify-center shrink-0 text-[10px]">3</span>
-                    <p><strong>Otrzymaj instalator Windows:</strong> Skrypt automatycznie podmieni mechanizm zapisu na bezpośredni zapis plików na komputerze!</p>
+                  <div className="flex gap-1.5">
+                    <span className="w-4 h-4 bg-indigo-50 text-indigo-700 font-bold border border-indigo-200 rounded flex items-center justify-center shrink-0 text-[10px]">3</span>
+                    <p>Skrypt automatycznie podmieni mechanizm zapisu na pliki dyskowe!</p>
                   </div>
                 </div>
               </div>
             </div>
 
-            <div className="text-[10px] text-slate-400 italic font-mono pt-3 border-t border-slate-150 mt-2">
+            <div className="text-[9px] text-slate-400 italic font-mono pt-2 border-t border-slate-150 mt-1.5">
               *Zbudowane w oparciu o architekturę kompatybilną z Electron IPC Bridge.
             </div>
           </div>
 
           {/* Card 3: Wybór Lokalizacji Bazy Danych */}
-          <div className="border border-slate-200 bg-slate-50/80 rounded-2xl p-5 space-y-4" id="db-filepath-picker-card">
-            <div className="flex items-center gap-2">
-              <Database className="w-5 h-5 text-indigo-600 shrink-0" />
-              <h3 className="font-bold text-slate-900 text-sm font-display tracking-tight">Ścieżka Bazy Danych (Plik JSON)</h3>
-            </div>
-
+          <div className="border border-slate-200 bg-slate-50/80 rounded-xl p-4 space-y-3 flex-1 flex flex-col justify-between" id="db-filepath-picker-card">
             <div className="space-y-3">
-              <p className="text-[11px] text-slate-500 leading-relaxed font-sans">
-                Wybierz lokalizację na dysku, w której ma być zapisywany plik bazy danych <code className="bg-slate-200 font-mono text-[9.5px] px-1 py-0.5 rounded">.json</code> programu.
-              </p>
+              <div className="flex items-center gap-1.5">
+                <Database className="w-4 h-4 text-indigo-600 shrink-0" />
+                <h3 className="font-bold text-slate-900 text-xs font-display tracking-tight">Status i Ścieżka Bazy Danych</h3>
+              </div>
 
-              {/* Current database path input */}
-              <div className="flex flex-col gap-1.5">
-                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Aktualna lokalizacja</label>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={dbPath}
-                    onChange={(e) => setDbPath(e.target.value)}
-                    placeholder="Wpisz lub wybierz ścieżkę do bazy..."
-                    className="w-full h-9 px-3 bg-white border border-slate-200 rounded-xl text-xs text-slate-950 font-mono focus:border-indigo-500 focus:outline-hidden transition-all"
-                  />
-                  {isElectron && (
-                    <button
-                      type="button"
-                      onClick={handleBrowseFile}
-                      className="px-3 bg-white border border-slate-200 text-slate-700 text-xs font-semibold rounded-xl hover:bg-slate-100 transition-colors cursor-pointer shrink-0"
-                      title="Wyszukaj istniejący plik..."
-                    >
-                      Otwórz...
-                    </button>
-                  )}
+              {/* Database status and metadata details on top */}
+              <div className="space-y-2.5">
+                <div className="space-y-0.5">
+                  <span className="text-[9px] font-bold text-slate-400 uppercase tracking-wider block">Aktualna lokalizacja pliku</span>
+                  <div className="bg-white border border-slate-200 text-slate-950 font-mono text-[9.5px] px-2.5 py-1.5 rounded-lg break-all select-all">
+                    {dbPath || 'Brak skonfigurowanej ścieżki'}
+                  </div>
                 </div>
-                {defaultPath && dbPath !== defaultPath && (
+
+                <div className="grid grid-cols-3 gap-1.5 bg-white border border-slate-200 p-2 rounded-lg text-center">
+                  <div className="space-y-0.5">
+                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block">Status</span>
+                    <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block ${dbExists ? 'text-emerald-800 bg-emerald-50' : 'text-amber-800 bg-amber-50'}`}>
+                      {dbExists ? 'Istnieje' : 'Brak pliku'}
+                    </span>
+                  </div>
+                  <div className="space-y-0.5 border-x border-slate-100">
+                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Rozmiar</span>
+                    <span className="text-[9px] font-mono text-slate-800 font-bold block">
+                      {formatBytes(dbSize)}
+                    </span>
+                  </div>
+                  <div className="space-y-0.5">
+                    <span className="text-[8px] font-bold text-slate-400 uppercase tracking-widest block font-sans">Modyfikacja</span>
+                    <span className="text-[8.5px] text-slate-705 font-medium block truncate">
+                      {formatDate(dbModified)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Primary database operations bar */}
+                <div className="grid grid-cols-2 gap-1.5">
                   <button
                     type="button"
-                    onClick={handleResetToDefault}
-                    className="text-[10px] text-indigo-600 hover:text-indigo-800 font-semibold self-start tracking-tight cursor-pointer"
+                    onClick={handleRevealFolder}
+                    className="h-8 px-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 text-[10.5px] font-bold rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer"
+                    title="Otwórz plik lub folder bazy w eksploratorze systemowym"
                   >
-                    ↺ Przywróć domyślną lokalizację systemu
+                    <span>📂 Otwórz folder</span>
                   </button>
-                )}
-              </div>
 
-              {/* Toggle to migrate files */}
-              <label className="flex items-center gap-1.5 cursor-pointer text-xs font-semibold text-slate-650 select-none bg-white border border-slate-150 rounded-xl p-2.5">
-                <input 
-                  type="checkbox"
-                  checked={moveData}
-                  onChange={(e) => setMoveData(e.target.checked)}
-                  className="rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
-                />
-                <div className="text-left leading-tight">
-                  <span className="block text-slate-900 text-[11px] font-bold">Przenieś obecne dane</span>
-                  <span className="text-[10px] text-slate-500 font-normal">Kopiuje aktualne transakcje i ustawienia do nowego pliku.</span>
+                  <button
+                    type="button"
+                    onClick={() => setShowLocationSettings(!showLocationSettings)}
+                    className={`h-8 px-2.5 text-[10.5px] font-bold rounded-lg flex items-center justify-center gap-1 transition-all cursor-pointer border ${
+                      showLocationSettings 
+                        ? 'bg-indigo-50 border-indigo-200 text-indigo-700' 
+                        : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300'
+                    }`}
+                  >
+                    <span>🔧 Ścieżka…</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleExportBackup}
+                    className="h-8 px-2.5 bg-white border border-slate-200 text-slate-700 hover:bg-slate-50 hover:border-slate-300 text-[10.5px] font-bold rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer col-span-1"
+                    title="Pobierz plik bazy jako standardowy JSON"
+                  >
+                    <Download className="w-3 h-3 text-slate-500" />
+                    <span>Kopia .json</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={handleDeleteDb}
+                    className="h-8 px-2.5 bg-rose-50 border border-rose-100 text-rose-700 hover:bg-rose-100 hover:border-rose-200 text-[10.5px] font-bold rounded-lg flex items-center justify-center gap-1 transition-colors cursor-pointer col-span-1"
+                  >
+                    <Trash2 className="w-3 h-3 text-rose-600" />
+                    <span>Usuń bazę</span>
+                  </button>
                 </div>
-              </label>
-
-              {/* Quick instructions and warnings */}
-              <div className="text-[10px] text-slate-500 space-y-1 bg-white border border-slate-150 rounded-xl p-3 leading-relaxed">
-                <span className="font-bold text-slate-700 uppercase tracking-wide block text-[9px]">Chmura i Synchronizacja:</span>
-                <p>Możesz współdzielić ten sam plik bazy danych ze swoimi dyskami OneDrive/Dropbox/Google Drive, wybierając ścieżkę wewnątrz zsynchronizowanego katalogu!</p>
               </div>
+
+              {/* Explandable custom location changer logic */}
+              {showLocationSettings && (
+                <div className="bg-slate-100 border border-slate-200/80 rounded-lg p-3 space-y-2 mt-1 animate-fade-in text-left">
+                  <div className="flex flex-col gap-1">
+                    <label className="text-[9px] font-bold text-slate-500 uppercase tracking-wider">Nowa ścieżka pliku JSON</label>
+                    <div className="flex gap-1.5">
+                      <input
+                        type="text"
+                        value={dbPath}
+                        onChange={(e) => setDbPath(e.target.value)}
+                        placeholder="Zmień ścieżkę do bazy..."
+                        className="w-full h-8 px-2.5 bg-white border border-slate-200 rounded-lg text-xs text-slate-950 font-mono focus:border-indigo-500 focus:outline-hidden transition-all"
+                      />
+                      {isElectron && (
+                        <button
+                          type="button"
+                          onClick={handleBrowseFile}
+                          className="px-2 h-8 bg-white border border-slate-200 text-slate-700 text-[11px] font-bold rounded-lg hover:bg-slate-50 transition-colors cursor-pointer shrink-0"
+                        >
+                          Szukaj...
+                        </button>
+                      )}
+                    </div>
+                    {defaultPath && dbPath !== defaultPath && (
+                      <button
+                        type="button"
+                        onClick={handleResetToDefault}
+                        className="text-[9px] text-indigo-600 hover:text-indigo-800 font-bold self-start tracking-tight cursor-pointer"
+                      >
+                        ↺ Przywróć lokalizację domyślną
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Migrate existing dataset checkbox toggle wrapper */}
+                  <label className="flex items-start gap-1.5 cursor-pointer text-xs font-semibold text-slate-650 select-none bg-white border border-slate-150 rounded-lg p-2">
+                    <input 
+                      type="checkbox"
+                      checked={moveData}
+                      onChange={(e) => setMoveData(e.target.checked)}
+                      className="rounded border-slate-350 text-indigo-600 focus:ring-indigo-500 cursor-pointer mt-0.5"
+                    />
+                    <div className="text-left leading-tight">
+                      <span className="block text-slate-950 text-[10px] font-bold">Przenieś obecne dane</span>
+                      <span className="text-[9px] text-slate-500 font-normal block mt-0.5">Kopiuje aktualne transakcje i ustawienia do nowego pliku bazy.</span>
+                    </div>
+                  </label>
+
+                  {/* Themes / iCloud / cloud sync simplified single line instruction */}
+                  <div className="text-[9px] text-slate-650 italic bg-white border border-slate-150 p-2 rounded-lg leading-relaxed">
+                    Wskazując ścieżkę w folderze OneDrive/Dropbox/Google Drive, baza synchronizuje się sama.
+                  </div>
+
+                  {/* Change confirmation and selectors */}
+                  <div className="flex gap-1.5 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => handleUpdateDbPath()}
+                      disabled={isDbUpdating}
+                      className="flex-1 h-8 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-lg text-[10px] shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1 disabled:opacity-50"
+                    >
+                      {isDbUpdating ? 'Zapis...' : 'Zapisz'}
+                    </button>
+                    {isElectron && (
+                      <button
+                        type="button"
+                        onClick={handleCreateFile}
+                        className="px-2 h-8 bg-white border border-slate-200 text-indigo-700 text-[10px] font-bold rounded-lg hover:bg-indigo-50 transition-colors cursor-pointer flex items-center justify-center shrink-0"
+                      >
+                        Nowa...
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
 
-            <div className="flex gap-2 pt-1">
+            {/* Informational persistent note outside settings */}
+            <div className="text-[9.5px] text-slate-500 bg-white border border-slate-150 p-2.5 rounded-lg leading-relaxed mt-1.5 select-none">
+              💡 <strong>Baza:</strong> Plik .json poza folderem programu (~/.symulator_podatkow) — pozostaje po usunięciu programu.
+            </div>
+          </div>
+
+          {/* Card 4: Zautomatyzowane Kopie Zapasowe */}
+          <div className="border border-slate-200 bg-slate-50/80 rounded-xl p-4 space-y-3 flex-1 flex flex-col" id="db-backup-card">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5">
+                <RefreshCw className="w-4 h-4 text-emerald-600 shrink-0" />
+                <h3 className="font-bold text-slate-900 text-xs font-display tracking-tight">Kopie Zapasowe i Migawki</h3>
+              </div>
               <button
                 type="button"
-                onClick={() => handleUpdateDbPath()}
-                disabled={isDbUpdating}
-                className="flex-1 h-9 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5 disabled:opacity-50"
+                onClick={handleCreateBackup}
+                disabled={isCreatingBackup}
+                className="px-2 h-7 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg text-[10px] shadow-xs transition-colors cursor-pointer disabled:opacity-50 flex items-center justify-center flex-shrink-0"
               >
-                {isDbUpdating ? 'Zapisywanie...' : 'Zapisz Ścieżkę'}
+                {isCreatingBackup ? 'Tworzenie...' : 'Utwórz kopię teraz'}
               </button>
-              {isElectron && (
-                <button
-                  type="button"
-                  onClick={handleCreateFile}
-                  className="px-3 bg-white border border-slate-200 text-indigo-600 text-xs font-bold rounded-xl hover:bg-indigo-50/50 transition-colors cursor-pointer flex items-center justify-center gap-1 shrink-0"
-                >
-                  Utwórz Nową...
-                </button>
+            </div>
+            
+            <p className="text-[10px] text-slate-500 leading-relaxed font-sans mb-1">
+              Kopie powstają automatycznie przy każdym uruchomieniu programu i leżą obok bazy (przeżywają odinstalowanie). Trzymane jest 15 ostatnich.
+            </p>
+
+            <div className="space-y-1.5 max-h-[140px] overflow-y-auto pr-1">
+              {backupsList.length === 0 ? (
+                <div className="text-center p-3 text-[10px] text-slate-400 bg-white border border-slate-150 rounded-lg">
+                  Brak kopii zapasowych w folderze.
+                </div>
+              ) : (
+                backupsList.map((bkp) => (
+                  <div key={bkp.name} className="flex items-center justify-between bg-white border border-slate-200 p-2 rounded-lg hover:border-emerald-300 transition-colors">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold text-slate-800">{formatDate(bkp.date)}</span>
+                      <span className="text-[8.5px] text-slate-400 font-mono">{formatBytes(bkp.size)} | {bkp.name.replace('.json', '')}</span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRestoreConfirm(bkp.name)}
+                      className="h-6 px-2 bg-slate-50 hover:bg-emerald-50 border border-slate-200 hover:border-emerald-300 text-emerald-700 font-bold rounded-md text-[9px] transition-colors cursor-pointer shadow-xs flex-shrink-0"
+                    >
+                      Przywróć
+                    </button>
+                  </div>
+                ))
               )}
             </div>
           </div>
@@ -1272,6 +1532,117 @@ export default function StorageControls({
           </button>
         </div>
       </div>
+
+      {/* Custom Confirmation Modal for Delete DB */}
+      {showDeleteDbConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in" id="delete-db-confirm-modal">
+          <div className="bg-white rounded-3xl shadow-xl border border-slate-200 max-w-md w-full p-6 space-y-4 animate-scale-in">
+            <div className="flex items-start gap-3">
+              <div className="p-3 bg-rose-50 rounded-2xl text-rose-600 shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-slate-900 tracking-tight font-display">
+                  Usuwanie bazy danych z dysku
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed text-left">
+                  Czy na pewno chcesz usunąć całą bazę podatkową i pliki transakcyjne z dysku? Ta operacja jest <strong>nieodwracalna</strong>. Dane zostaną skasowane i nastąpi reset do stanu początkowego.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2.5 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowDeleteDbConfirm(false)}
+                className="px-4 h-9 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                onClick={executeDeleteDb}
+                className="px-4 h-9 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors cursor-pointer shadow-sm"
+              >
+                Tak, trwale usuń bazę
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Confirmation Modal for Clear All State */}
+      {showClearAllConfirm && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in" id="clear-all-confirm-modal">
+          <div className="bg-white rounded-3xl shadow-xl border border-slate-200 max-w-md w-full p-6 space-y-4 animate-scale-in">
+            <div className="flex items-start gap-3">
+              <div className="p-3 bg-rose-50 rounded-2xl text-rose-600 shrink-0">
+                <AlertTriangle className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-slate-900 tracking-tight font-display">
+                  Czyszczenie wszystkich danych
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed text-left">
+                  Czy na pewno chcesz wyczyścić wszystkie transakcje, dane VAT, zaliczki i ustawienia zapisane w przeglądarce? Stracisz wszystkie zaimportowane faktury, chyba że posiadasz kopię zapasową w pliku Excel.
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2.5 justify-end">
+              <button
+                type="button"
+                onClick={() => setShowClearAllConfirm(false)}
+                className="px-4 h-9 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                onClick={executeClearAll}
+                className="px-4 h-9 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 rounded-xl transition-colors cursor-pointer shadow-sm"
+              >
+                Tak, wyczyść wszystko
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Confirmation Modal for Restore Backup */}
+      {restoreConfirmFile && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/60 backdrop-blur-xs p-4 animate-fade-in" id="restore-backup-confirm-modal">
+          <div className="bg-white rounded-3xl shadow-xl border border-slate-200 max-w-md w-full p-6 space-y-4 animate-scale-in">
+            <div className="flex items-start gap-3">
+              <div className="p-3 bg-emerald-50 rounded-2xl text-emerald-600 shrink-0">
+                <RefreshCw className="w-6 h-6" />
+              </div>
+              <div className="space-y-1">
+                <h3 className="text-sm font-bold text-slate-900 tracking-tight font-display">
+                  Przywracanie kopii zapasowej
+                </h3>
+                <p className="text-xs text-slate-500 leading-relaxed text-left">
+                  Zastąpisz bieżące dane kopią z dnia <strong>{formatDate(backupsList.find(b => b.name === restoreConfirmFile)?.date || '')}</strong>, czy kontynuować?
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2.5 justify-end">
+              <button
+                type="button"
+                onClick={() => setRestoreConfirmFile(null)}
+                className="px-4 h-9 text-xs font-bold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-xl transition-colors cursor-pointer"
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                onClick={executeRestoreBackup}
+                className="px-4 h-9 text-xs font-bold text-white bg-emerald-600 hover:bg-emerald-700 rounded-xl transition-colors cursor-pointer shadow-sm"
+              >
+                Tak, przywróć
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

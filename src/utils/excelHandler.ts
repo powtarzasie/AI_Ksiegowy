@@ -249,57 +249,48 @@ export function validateImportRows(
     };
 
     if (type === 'sprzedaz') {
-      const dataVal = row[mapping.data];
-      const nrVal = cleanInvoiceNumber(row[mapping.numerFaktury]);
-      const kontrahentVal = String(row[mapping.kontrahent] || 'Nieznany kontrahent').trim();
-      const nettoVal = parseNumber(row[mapping.netto]);
-      const stawkaVal = parseVatRate(row[mapping.stawkaVat]);
-      const vatVal = parseNumber(row[mapping.vat]);
-      const bruttoVal = parseNumber(row[mapping.brutto]);
-      const czyCitVal = parseBoolean(row[mapping.czyCIT], true);
-      const czyVatVal = parseBoolean(row[mapping.czyVAT], true);
+      const dataVal = mapping.data ? row[mapping.data] : undefined;
+      const nrVal = mapping.numerFaktury ? cleanInvoiceNumber(row[mapping.numerFaktury]) : "";
+      const kontrahentVal = mapping.kontrahent ? String(row[mapping.kontrahent] || '').trim() : '';
+      const nettoVal = mapping.netto ? parseNumber(row[mapping.netto]) : 0;
+      const stawkaVal = mapping.stawkaVat ? parseVatRate(row[mapping.stawkaVat]) : 23;
+      const vatVal = mapping.vat ? parseNumber(row[mapping.vat]) : 0;
+      const bruttoVal = mapping.brutto ? parseNumber(row[mapping.brutto]) : 0;
+      const czyCitVal = mapping.czyCIT ? parseBoolean(row[mapping.czyCIT], true) : true;
+      const czyVatVal = mapping.czyVAT ? parseBoolean(row[mapping.czyVAT], true) : true;
 
       // Perform validations via flexible date parser
       let testDate: Date | null = null;
-      if (!dataVal) {
-        errors.push({ row: rowNum, field: 'data', message: 'Brak daty faktury.', severity: 'error' });
-      } else {
-        testDate = parseFlexibleDate(dataVal);
-        if (!testDate) {
-          errors.push({ row: rowNum, field: 'data', message: `Niepoprawny format daty: "${dataVal}".`, severity: 'error' });
+      if (mapping.data) {
+        if (!dataVal) {
+          errors.push({ row: rowNum, field: 'data', message: 'Brak daty faktury.', severity: 'warning' });
         } else {
-          // Check match with current tax month/year
-          const monthNum = testDate.getMonth() + 1;
-          const yearNum = testDate.getFullYear();
-          if (monthNum !== selectedMonth || yearNum !== selectedYear) {
-            errors.push({
-              row: rowNum,
-              field: 'data',
-              message: `Faktura pochodzi z innego okresu (${testDate.toLocaleDateString()}) niż wybrany m-c i rok (${selectedMonth}/${selectedYear}).`,
-              severity: 'warning',
-              value: dataVal
-            });
+          testDate = parseFlexibleDate(dataVal);
+          if (!testDate) {
+            errors.push({ row: rowNum, field: 'data', message: `Niepoprawny format daty: "${dataVal}".`, severity: 'warning' });
           }
         }
       }
 
-      if (!nrVal) {
-        errors.push({ row: rowNum, field: 'numerFaktury', message: 'Brak numeru faktury u sprzedaży.', severity: 'error' });
-      } else {
-        const nrLower = nrVal.toLowerCase().trim();
-        if (currentUploadInvoices.has(nrLower)) {
-          errors.push({ row: rowNum, field: 'numerFaktury', message: `Powielony numer faktury "${nrVal}" w importowanym pliku.`, severity: 'warning' });
+      if (mapping.numerFaktury) {
+        if (!nrVal) {
+          errors.push({ row: rowNum, field: 'numerFaktury', message: 'Pusty numer faktury u sprzedaży.', severity: 'warning' });
         } else {
-          currentUploadInvoices.add(nrLower);
-        }
+          const nrLower = nrVal.toLowerCase().trim();
+          if (currentUploadInvoices.has(nrLower)) {
+            errors.push({ row: rowNum, field: 'numerFaktury', message: `Powielony numer faktury "${nrVal}" w importowanym pliku.`, severity: 'warning' });
+          } else {
+            currentUploadInvoices.add(nrLower);
+          }
 
-        if (existingSalesInvoices.has(nrLower)) {
-          errors.push({
-            row: rowNum,
-            field: 'numerFaktury',
-            message: `Faktura o numerze "${nrVal}" już istnieje w bazie danych dla tej spółki.`,
-            severity: 'warning'
-          });
+          if (existingSalesInvoices.has(nrLower)) {
+            errors.push({
+              row: rowNum,
+              field: 'numerFaktury',
+              message: `Faktura o numerze "${nrVal}" już istnieje w bazie danych dla tej spółki.`,
+              severity: 'warning'
+            });
+          }
         }
       }
 
@@ -327,8 +318,8 @@ export function validateImportRows(
 
       validatedData = {
         id: `sale-${Date.now()}-${index}-${Math.floor(Math.random() * 1000)}`,
-        data: testDate ? testDate.toISOString().split('T')[0] : new Date(selectedYear, selectedMonth - 1, 15).toISOString().split('T')[0],
-        numerFaktury: nrVal || 'FV-TEMP',
+        data: testDate ? testDate.toISOString().split('T')[0] : (mapping.data ? new Date(selectedYear, selectedMonth - 1, 15).toISOString().split('T')[0] : ""),
+        numerFaktury: nrVal,
         kontrahent: kontrahentVal,
         netto: nettoVal,
         stawkaVat: stawkaVal,
@@ -343,18 +334,18 @@ export function validateImportRows(
       totalSalesVat += validatedData.vat;
 
     } else if (type === 'zakupy') {
-      const dataVal = row[mapping.data];
-      const nrVal = cleanInvoiceNumber(row[mapping.numerFaktury]);
-      const dostawcaVal = String(row[mapping.dostawca] || 'Nieznany dostawca').trim();
-      const kategoriaVal = String(row[mapping.kategoria] || 'Inne').trim();
-      const nettoVal = parseNumber(row[mapping.netto]);
-      const stawkaVal = parseVatRate(row[mapping.stawkaVat]);
-      const vatVal = parseNumber(row[mapping.vat]);
-      const bruttoVal = parseNumber(row[mapping.brutto]);
-      const kosztCitVal = parseBoolean(row[mapping.kosztCIT], true);
+      const dataVal = mapping.data ? row[mapping.data] : undefined;
+      const nrVal = mapping.numerFaktury ? cleanInvoiceNumber(row[mapping.numerFaktury]) : "";
+      const dostawcaVal = mapping.dostawca ? String(row[mapping.dostawca] || '').trim() : '';
+      const kategoriaVal = mapping.kategoria ? String(row[mapping.kategoria] || '').trim() : '';
+      const nettoVal = mapping.netto ? parseNumber(row[mapping.netto]) : 0;
+      const stawkaVal = mapping.stawkaVat ? parseVatRate(row[mapping.stawkaVat]) : 23;
+      const vatVal = mapping.vat ? parseNumber(row[mapping.vat]) : 0;
+      const bruttoVal = mapping.brutto ? parseNumber(row[mapping.brutto]) : 0;
+      const kosztCitVal = mapping.kosztCIT ? parseBoolean(row[mapping.kosztCIT], true) : true;
       
       // Determine VAT deduction percentage
-      const odliczenieValRaw = row[mapping.odliczenieVat];
+      const odliczenieValRaw = mapping.odliczenieVat ? row[mapping.odliczenieVat] : undefined;
       let odliczenieVatVal = 100; // Default: full deduction
       if (odliczenieValRaw !== undefined && odliczenieValRaw !== '') {
         const cleanStr = String(odliczenieValRaw).replace(/[^0-9]/g, '');
@@ -372,43 +363,36 @@ export function validateImportRows(
 
       // Validations using the flexible date structure
       let testDate: Date | null = null;
-      if (!dataVal) {
-        errors.push({ row: rowNum, field: 'data', message: 'Brak daty faktury zakupowej.', severity: 'error' });
-      } else {
-        testDate = parseFlexibleDate(dataVal);
-        if (!testDate) {
-          errors.push({ row: rowNum, field: 'data', message: `Niepoprawny format daty: "${dataVal}".`, severity: 'error' });
+      if (mapping.data) {
+        if (!dataVal) {
+          errors.push({ row: rowNum, field: 'data', message: 'Brak daty faktury zakupowej.', severity: 'warning' });
         } else {
-          const monthNum = testDate.getMonth() + 1;
-          const yearNum = testDate.getFullYear();
-          if (monthNum !== selectedMonth || yearNum !== selectedYear) {
-            errors.push({
-              row: rowNum,
-              field: 'data',
-              message: `Faktura zakupu pochodzi z innego okresu (${testDate.toLocaleDateString()}) niż wybrany m-c i rok (${selectedMonth}/${selectedYear}).`,
-              severity: 'warning'
-            });
+          testDate = parseFlexibleDate(dataVal);
+          if (!testDate) {
+            errors.push({ row: rowNum, field: 'data', message: `Niepoprawny format daty: "${dataVal}".`, severity: 'warning' });
           }
         }
       }
 
-      if (!nrVal) {
-        errors.push({ row: rowNum, field: 'numerFaktury', message: 'Brak numeru faktury kosztowej.', severity: 'error' });
-      } else {
-        const nrLower = nrVal.toLowerCase().trim();
-        if (currentUploadInvoices.has(nrLower)) {
-          errors.push({ row: rowNum, field: 'numerFaktury', message: `Powielony numer faktury kosztowej "${nrVal}" w pliku.`, severity: 'warning' });
+      if (mapping.numerFaktury) {
+        if (!nrVal) {
+          errors.push({ row: rowNum, field: 'numerFaktury', message: 'Pusty numer faktury kosztowej.', severity: 'warning' });
         } else {
-          currentUploadInvoices.add(nrLower);
-        }
+          const nrLower = nrVal.toLowerCase().trim();
+          if (currentUploadInvoices.has(nrLower)) {
+            errors.push({ row: rowNum, field: 'numerFaktury', message: `Powielony numer faktury kosztowej "${nrVal}" w pliku.`, severity: 'warning' });
+          } else {
+            currentUploadInvoices.add(nrLower);
+          }
 
-        if (existingPurchasesInvoices.has(nrLower)) {
-          errors.push({
-            row: rowNum,
-            field: 'numerFaktury',
-            message: `Faktura kosztowa o numerze "${nrVal}" istnieje już w bazie.`,
-            severity: 'warning'
-          });
+          if (existingPurchasesInvoices.has(nrLower)) {
+            errors.push({
+              row: rowNum,
+              field: 'numerFaktury',
+              message: `Faktura kosztowa o numerze "${nrVal}" istnieje już w bazie.`,
+              severity: 'warning'
+            });
+          }
         }
       }
 
@@ -424,10 +408,10 @@ export function validateImportRows(
 
       validatedData = {
         id: `purchase-${Date.now()}-${index}-${Math.floor(Math.random() * 1000)}`,
-        data: testDate ? testDate.toISOString().split('T')[0] : new Date(selectedYear, selectedMonth - 1, 15).toISOString().split('T')[0],
-        numerFaktury: nrVal || 'FV-TEMP',
+        data: testDate ? testDate.toISOString().split('T')[0] : (mapping.data ? new Date(selectedYear, selectedMonth - 1, 15).toISOString().split('T')[0] : ""),
+        numerFaktury: nrVal,
         dostawca: dostawcaVal,
-        kategoria: kategoriaVal,
+        kategoria: kategoriaVal || 'Inne',
         netto: nettoVal,
         stawkaVat: stawkaVal,
         vat: vatVal || expectedVat,
@@ -469,14 +453,7 @@ export function validateImportRows(
         }
       }
 
-      if (mNum !== selectedMonth) {
-        errors.push({
-          row: rowNum,
-          field: 'miesiac',
-          message: `Zaliczka dotyczy innego miesiąca niż aktywny (${mNum} zamiast ${selectedMonth}).`,
-          severity: 'warning'
-        });
-      }
+
 
       if (kwotaVal <= 0) {
         errors.push({ row: rowNum, field: 'kwota', message: 'Kwota zaliczki powinna być większa od zera.', severity: 'warning' });
@@ -525,14 +502,7 @@ export function validateImportRows(
         }
       }
 
-      if (mNum !== selectedMonth) {
-        errors.push({
-          row: rowNum,
-          field: 'miesiac',
-          message: `Wpis dotyczy innego miesiąca niż aktywny (${mNum} zamiast ${selectedMonth}).`,
-          severity: 'warning'
-        });
-      }
+
 
       validatedData = {
         id: `vatreg-${Date.now()}-${index}-${Math.floor(Math.random() * 1000)}`,

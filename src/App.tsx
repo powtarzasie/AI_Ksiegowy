@@ -8,6 +8,7 @@ import {
   VatRegistry
 } from './types';
 import CompanySettingsComponent from './components/CompanySettings';
+import InteractiveHelpModal from './components/InteractiveHelpModal';
 import StorageControls from './components/StorageControls';
 import ExcelImportModal from './components/ExcelImportModal';
 import TaxDashboard from './components/TaxDashboard';
@@ -16,6 +17,7 @@ import McKinseyDashboard from './components/McKinseyDashboard';
 import TaxAdvisorAssistant from './components/TaxAdvisorAssistant';
 import FinancialDashboard from './components/FinancialDashboard';
 import PdfExportModal from './components/PdfExportModal';
+import StrategicPlanner from './components/StrategicPlanner';
 import {
   Database,
   Layers,
@@ -27,7 +29,8 @@ import {
   FileText,
   HelpCircle,
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  Compass
 } from 'lucide-react';
 
 const LOCAL_STORAGE_KEY = 'symulator_podatkow_state_v2';
@@ -418,12 +421,59 @@ export default function App() {
 
   const [disclaimerChecked, setDisclaimerChecked] = useState<boolean>(false);
 
-  const [activeTab, setActiveTab ] = useState<'kpis' | 'financial_dashboard' | 'yearly_executive' | 'registers' | 'settings_backup' | 'tax_advisor'>('kpis');
+  const [activeTab, setActiveTab ] = useState<'kpis' | 'financial_dashboard' | 'yearly_executive' | 'registers' | 'settings_backup' | 'tax_advisor' | 'strategic_planner'>('kpis');
+  const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [importModalOpen, setImportModalOpen] = useState(false);
   const [isPdfModalOpen, setIsPdfModalOpen] = useState(false);
   const [isSavedIndicator, setIsSavedIndicator] = useState(false);
   const [isDiskSaved, setIsDiskSaved] = useState(false);
   const [showHelper, setShowHelper] = useState(false);
+  const [helpActiveQuestion, setHelpActiveQuestion] = useState<string>('all');
+  const [importNotification, setImportNotification] = useState<{
+    salesCount: number;
+    purchasesCount: number;
+    citCount: number;
+    vatCount: number;
+    strategy: string;
+    totalRows: number;
+  } | null>(null);
+
+  const handleShowHelperChange = (show: boolean, section?: string) => {
+    setShowHelper(show);
+    if (section) {
+      setHelpActiveQuestion(section);
+    } else if (show) {
+      setHelpActiveQuestion('all');
+    }
+  };
+
+  // Logo upload handlers
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 1024 * 1024) {
+        alert('Plik logo jest za duży! Maksymalna wielkość to 1MB.');
+        return;
+      }
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const base64 = event.target?.result as string;
+        handleSettingsChange({
+          ...state.settings,
+          customLogoBase64: base64
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleLogoRemove = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    handleSettingsChange({
+      ...state.settings,
+      customLogoBase64: undefined
+    });
+  };
   const [lastSavedTime, setLastSavedTime] = useState<string>(() => {
     return new Date().toLocaleString('pl-PL', {
       year: 'numeric',
@@ -460,6 +510,9 @@ export default function App() {
 
   // Autosave when state changes
   useEffect(() => {
+    if (showLaunchChoices) {
+      return; // Do not save state when we are showing launch choices!
+    }
     try {
       localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(state));
       setIsSavedIndicator(true);
@@ -496,7 +549,7 @@ export default function App() {
     } catch (e) {
       console.error('Failed to save to localStorage:', e);
     }
-  }, [state]);
+  }, [state, showLaunchChoices]);
 
   // Handle manual backup import
   const handleStateImport = (importedState: AppState) => {
@@ -504,8 +557,18 @@ export default function App() {
   };
 
   // Clear data
-  const handleStateClear = () => {
-    localStorage.removeItem('tax_app_initial_chosen');
+  const handleStateClear = async () => {
+    try {
+      localStorage.removeItem(LOCAL_STORAGE_KEY);
+      localStorage.removeItem('tax_app_initial_chosen');
+      
+      // Also try to delete/reset the physical database on the server
+      await fetch('/api/db', { method: 'DELETE' }).catch(err => {
+        console.warn('Failed to delete physical database on server:', err);
+      });
+    } catch (e) {
+      console.error('Error clearing local storage:', e);
+    }
     setShowLaunchChoices(true);
     setState(EMPTY_STATE);
   };
@@ -581,27 +644,63 @@ export default function App() {
     const { settings } = state;
     const mActive = settings.miesiacPodatkowy;
 
+    let importedSalesCount = importedData.sales.length;
+    let importedPurchasesCount = importedData.purchases.length;
+    let importedCitCount = importedData.citAdvances.length;
+    let importedVatCount = importedData.vatRegistry.length;
+    const totalProcessed = importedSalesCount + importedPurchasesCount + importedCitCount + importedVatCount;
+
     setState((prev) => {
       let salesCombined = [...prev.sales];
       let purchasesCombined = [...prev.purchases];
       let advancesCombined = [...prev.citAdvances];
       let vatCombined = [...prev.vatRegistry];
 
-      // Strategy: overwrite -> purge old data for THIS month first
+      // Strategy: overwrite -> purge old data for months present in imported data
       if (overwriteStrategy === 'overwrite') {
-        const checkInMonth = (dateStr: string) => {
+        const monthsInSales = new Set(importedData.sales.map(s => {
+          if (!s.data) return '';
+          const parts = s.data.split('-');
+          return parts.length >= 2 ? `${parts[0]}-${parseInt(parts[1], 10)}` : '';
+        }).filter(Boolean));
+
+        const monthsInPurchases = new Set(importedData.purchases.map(p => {
+          if (!p.data) return '';
+          const parts = p.data.split('-');
+          return parts.length >= 2 ? `${parts[0]}-${parseInt(parts[1], 10)}` : '';
+        }).filter(Boolean));
+
+        const importedMonthsAndYears = new Set([...monthsInSales, ...monthsInPurchases]);
+
+        // Fallback to active month if no dates parsed
+        if (importedMonthsAndYears.size === 0) {
+          importedMonthsAndYears.add(`${settings.rokPodatkowy}-${mActive}`);
+        }
+
+        const checkInImportedMonthsAndYears = (dateStr: string) => {
           if (!dateStr) return false;
           const parts = dateStr.split('-');
           if (parts.length >= 2) {
-            return parseInt(parts[1], 10) === mActive && parseInt(parts[0], 10) === settings.rokPodatkowy;
+            const key = `${parts[0]}-${parseInt(parts[1], 10)}`;
+            return importedMonthsAndYears.has(key);
           }
           return false;
         };
 
-        salesCombined = salesCombined.filter(s => !checkInMonth(s.data));
-        purchasesCombined = purchasesCombined.filter(p => !checkInMonth(p.data));
-        advancesCombined = advancesCombined.filter(a => a.miesiac !== mActive);
-        vatCombined = vatCombined.filter(v => v.miesiac !== mActive);
+        salesCombined = salesCombined.filter(s => !checkInImportedMonthsAndYears(s.data));
+        purchasesCombined = purchasesCombined.filter(p => !checkInImportedMonthsAndYears(p.data));
+
+        // For advances and VAT, gather the months
+        const importedMonths = new Set<number>();
+        importedData.citAdvances.forEach(a => importedMonths.add(a.miesiac));
+        importedData.vatRegistry.forEach(v => importedMonths.add(v.miesiac));
+
+        if (importedMonths.size === 0) {
+          importedMonths.add(mActive);
+        }
+
+        advancesCombined = advancesCombined.filter(a => !importedMonths.has(a.miesiac));
+        vatCombined = vatCombined.filter(v => !importedMonths.has(v.miesiac));
       }
 
       // Strategy: skip_duplicates -> match by Invoice Numbers
@@ -611,6 +710,9 @@ export default function App() {
 
         const filteredImportedSales = importedData.sales.filter(s => !existingSalesInvoices.has(s.numerFaktury.toLowerCase().trim()));
         const filteredImportedPurchases = importedData.purchases.filter(p => !existingPurchasesInvoices.has(p.numerFaktury.toLowerCase().trim()));
+
+        importedSalesCount = filteredImportedSales.length;
+        importedPurchasesCount = filteredImportedPurchases.length;
 
         salesCombined = [...filteredImportedSales, ...salesCombined];
         purchasesCombined = [...filteredImportedPurchases, ...purchasesCombined];
@@ -649,6 +751,20 @@ export default function App() {
       };
     });
 
+    let PolishStrategyName = 'Pomiń duplikaty';
+    if (overwriteStrategy === 'append') PolishStrategyName = 'Dodaj wszystko';
+    else if (overwriteStrategy === 'overwrite') PolishStrategyName = 'Nadpisz dane';
+    else if (overwriteStrategy === 'separate_version') PolishStrategyName = 'Nowa wersja';
+
+    setImportNotification({
+      salesCount: importedSalesCount,
+      purchasesCount: importedPurchasesCount,
+      citCount: importedCitCount,
+      vatCount: importedVatCount,
+      strategy: PolishStrategyName,
+      totalRows: totalProcessed,
+    });
+
     setImportModalOpen(false);
   };
 
@@ -663,101 +779,216 @@ export default function App() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         
         {/* Unified Top Meta & Settings Card */}
-        <div className="bg-white rounded-3xl shadow-xs border border-slate-200 p-6 space-y-6" id="top-unified-control-panel">
+        <div className="sticky top-4 z-40 bg-white/95 backdrop-blur-md rounded-3xl shadow-md border border-slate-200 p-6 space-y-4 transition-all" id="top-unified-control-panel">
           
           {/* Bento-Styled Premium Header Inner Block */}
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4" id="global-header">
+          <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4" id="global-header">
             <div className="flex flex-wrap items-center gap-4 md:gap-6 flex-1">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-display font-bold text-2xl shadow-md shadow-indigo-100 shrink-0">
-                  Σ
+              <div className="flex items-center gap-4">
+                <div 
+                  className={`relative group w-20 h-20 rounded-xl flex items-center justify-center text-white font-display font-bold text-3xl shadow-md shrink-0 overflow-hidden cursor-pointer transition-all ${
+                    state.settings.customLogoBase64 
+                      ? 'bg-white border border-slate-200 shadow-sm' 
+                      : 'bg-indigo-600 shadow-indigo-100'
+                  }`} 
+                  title="Przeciągnij lub kliknij, aby wgrać logo firmy"
+                >
+                  {state.settings.customLogoBase64 ? (
+                    <img src={state.settings.customLogoBase64} alt="Company Logo" className="w-full h-full object-contain p-2" referrerPolicy="no-referrer" />
+                  ) : (
+                    <span>Σ</span>
+                  )}
+                  {/* Hover file upload and remove state */}
+                  <div className="absolute inset-0 bg-slate-900/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-[10px] font-bold text-white text-center leading-tight">
+                    <span>Zmień</span>
+                    {state.settings.customLogoBase64 && (
+                      <span onClick={handleLogoRemove} className="text-[9px] text-rose-300 font-extrabold mt-1 hover:text-rose-400">Usuń ×</span>
+                    )}
+                  </div>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoUpload}
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                  />
                 </div>
                 <div>
-                  <span className="text-[10px] font-bold text-indigo-600 uppercase tracking-widest leading-none font-display">
-                    Inteligentny Symulator Podatkowy
-                  </span>
-                  <h1 className="text-xl font-bold text-slate-800 tracking-tight flex flex-wrap items-center gap-2 mt-0.5">
-                    {state.settings.nazwaSpolki || 'Kalkulator CIT & VAT'}
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 mt-0.5">
+                    <h1 className="text-base font-bold text-slate-800 tracking-tight flex items-center gap-2">
+                      {state.settings.nazwaSpolki || 'Kalkulator CIT & VAT'}
+                    </h1>
                     {state.settings.nip && (
-                      <span className="text-xs bg-slate-100 font-mono text-slate-600 px-2 py-0.5 rounded font-medium border border-slate-200">
+                      <span className="text-[10px] bg-slate-100 font-mono text-slate-600 px-1.5 py-0.5 rounded font-bold border border-slate-200 select-all">
                         NIP: {state.settings.nip}
                       </span>
                     )}
-                  </h1>
+                    <span className="text-[10px] bg-indigo-50 font-bold text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-100">
+                      CIT: {state.settings.stawkaCIT}%
+                    </span>
+                    <span className="text-[10px] bg-emerald-50 font-bold text-emerald-700 px-1.5 py-0.5 rounded border border-emerald-100 uppercase">
+                      {polishMonthsNames[state.settings.miesiacPodatkowy - 1]} {state.settings.rokPodatkowy}
+                    </span>
+
+                    <span className="w-px h-3.5 bg-slate-200 hidden md:inline self-center" />
+
+                    <button
+                      type="button"
+                      onClick={() => setIsSettingsModalOpen(true)}
+                      className="text-[10px] bg-white border border-slate-200 text-indigo-800 hover:text-indigo-600 font-extrabold px-2 py-0.5 rounded-lg hover:border-indigo-300 hover:bg-slate-50 cursor-pointer transition-all self-center shadow-xs flex items-center gap-1"
+                    >
+                      <span>Dane firmy ⚙</span>
+                    </button>
+
+                    <button
+                      onClick={() => handleShowHelperChange(!showHelper)}
+                      className={`text-[10px] border px-2 py-0.5 rounded-lg font-bold flex items-center gap-1 transition-all cursor-pointer shadow-xs select-none self-center ${
+                        showHelper
+                          ? 'border-indigo-600 bg-indigo-600 text-white'
+                          : 'border-indigo-200 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-805'
+                      }`}
+                    >
+                      <HelpCircle className={`w-3.5 h-3.5 ${showHelper ? 'text-white' : 'text-indigo-600'}`} />
+                      <span>Pomoc</span>
+                    </button>
+
+                    <button
+                      onClick={() => setActiveTab('settings_backup')}
+                      className={`text-[10px] border px-2 py-0.5 rounded-lg font-bold flex items-center gap-1 transition-all cursor-pointer shadow-xs select-none self-center ${
+                        activeTab === 'settings_backup'
+                          ? 'border-indigo-600 bg-indigo-600 text-white'
+                          : 'border-indigo-200 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-805'
+                      }`}
+                    >
+                      <Database className={`w-3.5 h-3.5 ${activeTab === 'settings_backup' ? 'text-white' : 'text-indigo-600'}`} />
+                      <span>Magazyn</span>
+                    </button>
+                  </div>
                 </div>
               </div>
-
-              {/* Help assistant button in the gap pointed to by the red arrow */}
-              <button
-                onClick={() => setShowHelper(!showHelper)}
-                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-indigo-200 bg-indigo-50 hover:bg-indigo-100/80 text-[11px] font-bold text-indigo-800 transition-all cursor-pointer shadow-xs select-none uppercase tracking-wider"
-              >
-                <HelpCircle className="w-4 h-4 text-indigo-600" />
-                CENTRUM POMOCY
-              </button>
             </div>
 
-            <div className="flex flex-wrap items-center gap-4 md:gap-6 self-stretch md:self-auto justify-between md:justify-end">
-              <div className="flex flex-col items-start md:items-end">
-                <div className="flex items-center gap-1.5 text-emerald-600 font-semibold text-xs uppercase tracking-wider">
-                  <span className="w-2.5 h-2.5 bg-emerald-500 rounded-full animate-pulse" />
-                  {isSavedIndicator ? 'Zapisywanie...' : isDiskSaved ? 'Zapisano na dysku (Plik)' : 'Dane zapisane lokalnie'}
+            <div className="flex flex-col items-start lg:items-end gap-1.5 self-stretch lg:self-auto">
+              <span className="text-[10px] font-black text-indigo-600 uppercase tracking-widest leading-none font-display text-left lg:text-right">
+                Inteligentny Symulator Podatkowy
+              </span>
+              <div className="flex flex-wrap items-center gap-4 md:gap-6 self-stretch lg:self-auto justify-between lg:justify-end">
+                <div className="flex flex-col items-start lg:items-end">
+                  <div className="flex items-center gap-1.5 text-emerald-600 font-semibold text-xs uppercase tracking-wider">
+                    <span className="w-2 bg-emerald-500 h-2 rounded-full animate-pulse" />
+                    {isSavedIndicator ? 'Zapisywanie...' : isDiskSaved ? 'Zapisano na dysku (Plik)' : 'Dane zapisane lokalnie'}
+                  </div>
+                  <span className="text-[9px] text-slate-400 mt-0.5 font-mono">
+                    Ostatni autozapis: {lastSavedTime}
+                  </span>
                 </div>
-                <span className="text-[10px] text-slate-400 mt-0.5 font-mono">
-                  Ostatni autozapis: {lastSavedTime}
-                </span>
-              </div>
-              
-              <div className="h-8 w-px bg-slate-200 hidden sm:block"></div>
+                
+                <div className="h-8 w-px bg-slate-200 hidden sm:block"></div>
 
-              {/* Quick Actions & Date Indicator */}
-              <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
-                <span className="px-3 py-1 text-xs font-bold bg-white text-indigo-700 rounded-lg shadow-xs font-display">
-                  {polishMonthsNames[state.settings.miesiacPodatkowy - 1]} {state.settings.rokPodatkowy}
-                </span>
-                <button
-                  onClick={() => setImportModalOpen(true)}
-                  className="px-3 py-1 text-xs font-semibold text-slate-600 hover:text-indigo-600 flex items-center gap-1.5 transition-colors cursor-pointer border-r border-slate-200 pr-2"
-                  id="header-import-excel-btn"
-                >
-                  <FileSpreadsheet className="w-3.5 h-3.5" />
-                  Importuj Excel
-                </button>
-                <button
-                  onClick={() => setIsPdfModalOpen(true)}
-                  className="px-3 py-1 text-xs font-semibold text-slate-600 hover:text-indigo-600 flex items-center gap-1.5 transition-colors cursor-pointer pl-1"
-                  id="header-export-pdf-btn"
-                >
-                  <FileText className="w-3.5 h-3.5" />
-                  Eksportuj PDF
-                </button>
+                {/* Quick Actions & Date Indicator */}
+                <div className="flex items-center gap-1.5 bg-slate-100 p-1.5 rounded-xl border border-slate-200">
+                  {/* Rok Podatkowy Selector (Interactive dropdown styled as small button) */}
+                  <select
+                    value={state.settings.rokPodatkowy}
+                    onChange={(e) => handleSettingsChange({
+                      ...state.settings,
+                      rokPodatkowy: parseInt(e.target.value, 10)
+                    })}
+                    className="px-2 py-0.5 text-[10.5px] font-bold text-indigo-700 hover:text-indigo-600 bg-white border border-slate-200 hover:border-indigo-300 rounded-lg transition-all cursor-pointer focus:outline-none shadow-xs font-display text-center"
+                  >
+                    {[2024, 2025, 2026, 2027].map((yr) => (
+                      <option key={yr} value={yr}>
+                        {yr} ROK
+                      </option>
+                    ))}
+                  </select>
+
+                  {/* Miesiąc Symulacji Selector (Interactive dropdown styled as small button) */}
+                  <select
+                    value={state.settings.miesiacPodatkowy}
+                    onChange={(e) => handleSettingsChange({
+                      ...state.settings,
+                      miesiacPodatkowy: parseInt(e.target.value, 10)
+                    })}
+                    className="px-2 py-0.5 text-[10.5px] font-bold text-indigo-700 hover:text-indigo-600 bg-white border border-slate-200 hover:border-indigo-300 rounded-lg transition-all cursor-pointer focus:outline-none shadow-xs font-display text-center"
+                  >
+                    {polishMonthsNames.map((mStr, idx) => (
+                      <option key={idx + 1} value={idx + 1}>
+                        {idx + 1} - {mStr}
+                      </option>
+                    ))}
+                  </select>
+
+                  <div className="h-4 w-px bg-slate-200 shrink-0"></div>
+
+                  <button
+                    onClick={() => setImportModalOpen(true)}
+                    className="px-2 py-0.5 text-[10.5px] font-semibold text-slate-600 hover:text-indigo-600 flex items-center gap-1 transition-colors cursor-pointer border-r border-slate-200 pr-1.5"
+                    id="header-import-excel-btn"
+                  >
+                    <FileSpreadsheet className="w-3 h-3" />
+                    Import
+                  </button>
+                  <button
+                    onClick={() => setIsPdfModalOpen(true)}
+                    className="px-2 py-0.5 text-[10.5px] font-semibold text-slate-600 hover:text-indigo-600 flex items-center gap-1 transition-colors cursor-pointer pl-0.5"
+                    id="header-export-pdf-btn"
+                  >
+                    <FileText className="w-3 h-3" />
+                    Eksport PDF
+                  </button>
+                </div>
               </div>
             </div>
           </div>
-
-          {/* Embedded Company Settings Component */}
-          <CompanySettingsComponent
-            settings={state.settings}
-            onSettingsChange={handleSettingsChange}
-            embedded={true}
-            showHelper={showHelper}
-            onShowHelperChange={setShowHelper}
-          />
         </div>
 
+        {/* Edit Company Settings Modal */}
+        {isSettingsModalOpen && (
+          <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto animate-fade-in">
+            <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 max-w-3xl w-full relative">
+              <button
+                type="button"
+                onClick={() => setIsSettingsModalOpen(false)}
+                className="absolute top-4 right-4 text-slate-400 hover:text-slate-650 text-xl font-bold cursor-pointer bg-slate-100 hover:bg-slate-200 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+                title="Zamknij"
+              >
+                &times;
+              </button>
+              
+              <div className="space-y-4">
+                <CompanySettingsComponent
+                  settings={state.settings}
+                  onSettingsChange={handleSettingsChange}
+                  embedded={false}
+                  showHelper={showHelper}
+                  onShowHelperChange={handleShowHelperChange}
+                />
+                <div className="flex justify-end gap-3 pt-4 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => setIsSettingsModalOpen(false)}
+                    className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs shadow-xs transition-colors cursor-pointer select-none"
+                  >
+                    Gotowe i zapisz dane
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Bento Navigation Pills divided into separate sections for operations and AI/Strategy */}
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-4" id="main-navigation-container">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3" id="main-navigation-container">
           {/* Section 1: Standard accounting and operations modules */}
-          <div className="lg:col-span-7 bg-slate-100 p-2 rounded-2xl border border-slate-200 flex flex-col sm:flex-row sm:items-center gap-2" id="navigation-operations-section">
-            <div className="px-3 py-1 font-mono text-[9px] font-black uppercase tracking-widest text-slate-500 shrink-0 border-b sm:border-b-0 sm:border-r border-slate-200">
+          <div className="bg-slate-100 p-1 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center gap-1.5" id="navigation-operations-section">
+            <div className="px-2.5 py-1 font-mono text-[9px] font-black uppercase tracking-widest text-slate-500 shrink-0 border-b sm:border-b-0 sm:border-r border-slate-300 select-none">
               Operacje i Księgi
             </div>
-            <div className="flex flex-wrap gap-1.5 flex-1">
+            <div className="flex flex-wrap gap-1 flex-1 items-center">
               {[
                 { id: 'kpis', label: 'Tablica Wyników i Symulacje', icon: Layers },
                 { id: 'financial_dashboard', label: 'Dashboard Finansowy (TTM)', icon: Layers },
                 { id: 'registers', label: 'Księgi i Rejestry Transakcji', icon: FileText },
-                { id: 'settings_backup', label: 'Magazyn i Kopia Zapasowa', icon: Database },
               ].map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -765,13 +996,13 @@ export default function App() {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as any)}
-                    className={`flex items-center gap-1.5 px-3.5 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer relative ${
+                    className={`flex items-center gap-1.5 h-7 px-2.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer relative ${
                       isActive
-                        ? 'bg-slate-800 text-white shadow-xs'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                     }`}
                   >
-                    <Icon className="w-3.5 h-3.5 shrink-0 text-slate-500" />
+                    <Icon className={`w-3 h-3 shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
                     <span>{tab.label}</span>
                   </button>
                 );
@@ -779,18 +1010,17 @@ export default function App() {
             </div>
           </div>
 
-          {/* Section 2: AI & Strategic Advisory (Requested to be in a separate, premium section) */}
-          <div className="lg:col-span-5 bg-indigo-50/70 p-2 rounded-2xl border-2 border-indigo-200/80 flex flex-col sm:flex-row sm:items-center gap-2 relative overflow-hidden shadow-xs" id="navigation-ai-strategy-section">
-            {/* Ambient light overlay */}
-            <div className="absolute right-0 top-0 translate-x-4 -translate-y-4 w-12 h-12 bg-indigo-550/10 rounded-full blur-xl pointer-events-none" />
-            <div className="px-3 py-1 font-mono text-[9px] font-bold uppercase tracking-widest text-indigo-700 shrink-0 border-b sm:border-b-0 sm:border-r border-indigo-200 flex items-center gap-1">
-              <Sparkles className="w-3 h-3 text-indigo-600 animate-pulse" />
+          {/* Section 2: AI & Strategic Advisory */}
+          <div className="bg-slate-100 p-1 rounded-xl border border-slate-200 flex flex-col sm:flex-row sm:items-center gap-1.5 relative overflow-hidden" id="navigation-ai-strategy-section">
+            <div className="px-2.5 py-1 font-mono text-[9px] font-black uppercase tracking-widest text-slate-500 shrink-0 border-b sm:border-b-0 sm:border-r border-slate-300 flex items-center gap-1 select-none">
+              <Sparkles className="w-3 h-3 text-slate-500" />
               <span>Strategia AI</span>
             </div>
-            <div className="flex flex-wrap gap-1.5 flex-1 z-10">
+            <div className="flex flex-wrap gap-1 flex-1 items-center z-10 font-sans">
               {[
                 { id: 'yearly_executive', label: 'Strategiczny Bilans', icon: Layers2, badge: 'Smart Audit' },
                 { id: 'tax_advisor', label: 'Asystent Kosztów', icon: Sparkles, badge: 'AI Doradca' },
+                { id: 'strategic_planner', label: 'Planer Strategiczny', icon: Compass, badge: 'Portfel' },
               ].map((tab) => {
                 const Icon = tab.icon;
                 const isActive = activeTab === tab.id;
@@ -798,22 +1028,18 @@ export default function App() {
                   <button
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as any)}
-                    className={`flex items-center gap-2 px-3 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer relative ${
+                    className={`flex items-center gap-1.5 h-7 px-2.5 text-[11px] font-bold rounded-lg transition-all cursor-pointer relative ${
                       isActive
-                        ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/10'
-                        : 'text-indigo-900 hover:text-slate-950 hover:bg-indigo-100/50'
+                        ? 'bg-slate-900 text-white shadow-xs'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
                     }`}
                   >
-                    {tab.id === 'yearly_executive' ? (
-                      <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-amber-300 animate-pulse' : 'text-indigo-600'}`} />
-                    ) : (
-                      <Sparkles className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-amber-300 animate-pulse' : 'text-indigo-600'}`} />
-                    )}
+                    <Icon className={`w-3 h-3 shrink-0 ${isActive ? 'text-white' : 'text-slate-500'}`} />
                     <span>{tab.label}</span>
-                    <span className={`text-[8px] px-1.5 py-0.5 rounded-xs font-black uppercase font-mono tracking-wider ${
+                    <span className={`text-[7.5px] px-1 py-0.5 rounded-sm font-black uppercase font-mono tracking-wider shrink-0 transition-colors ${
                       isActive 
-                        ? 'bg-indigo-500 text-white border border-indigo-400' 
-                        : 'bg-indigo-150/80 text-indigo-700 border border-indigo-100'
+                        ? 'bg-slate-800 text-slate-100 border border-slate-700' 
+                        : 'bg-indigo-50 text-indigo-700 border border-indigo-100'
                     }`}>
                       {tab.badge}
                     </span>
@@ -840,6 +1066,10 @@ export default function App() {
 
           {activeTab === 'tax_advisor' && (
             <TaxAdvisorAssistant state={state} />
+          )}
+
+          {activeTab === 'strategic_planner' && (
+            <StrategicPlanner state={state} />
           )}
 
           {activeTab === 'registers' && (
@@ -970,12 +1200,94 @@ export default function App() {
         />
       )}
 
+      {/* Import Notification Success Dialog / Modal */}
+      {importNotification && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4" id="import-success-toast-bg">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 md:p-8 max-w-md w-full space-y-6 animate-fade-in animate-duration-200" id="import-success-notify-card">
+            <div className="flex items-center gap-4">
+              <div className="w-12 h-12 bg-emerald-50 border border-emerald-150 rounded-2xl flex items-center justify-center text-emerald-600 shrink-0">
+                <CheckCircle className="w-6 h-6 text-emerald-600" />
+              </div>
+              <div className="text-left">
+                <h3 className="text-lg font-bold text-slate-900 tracking-tight font-display">
+                  Import zakończony sukcesem!
+                </h3>
+                <p className="text-xs text-slate-500">
+                  Przetworzono i zapisano dane podatkowe
+                </p>
+              </div>
+            </div>
+
+            <div className="bg-slate-50 rounded-2xl p-4 border border-slate-100 space-y-3">
+              <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-200/50">
+                <span className="text-slate-500 font-medium">Strategia zapisu:</span>
+                <span className="font-semibold text-slate-800 bg-indigo-50 border border-indigo-100 px-2 py-0.5 rounded-md text-[11px]">{importNotification.strategy}</span>
+              </div>
+              <div className="flex justify-between items-center text-xs pb-2 border-b border-slate-200/50">
+                <span className="text-slate-500 font-medium font-semibold text-slate-700">Wszystkich zidentyfikowanych wierszy:</span>
+                <span className="font-bold text-indigo-600 text-sm">{importNotification.totalRows}</span>
+              </div>
+
+              <div className="space-y-2 pt-1 text-left">
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-600 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full"></span>
+                    VAT Sprzedaż (Zapisane faktury)
+                  </span>
+                  <span className="font-semibold text-slate-900">{importNotification.salesCount} szt.</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-600 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-rose-500 rounded-full"></span>
+                    VAT Zakupy (Koszty i odliczenia)
+                  </span>
+                  <span className="font-semibold text-slate-900">{importNotification.purchasesCount} szt.</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-600 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-amber-500 rounded-full"></span>
+                    Zapisane zaliczki CIT
+                  </span>
+                  <span className="font-semibold text-slate-900">{importNotification.citCount} szt.</span>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-slate-600 flex items-center gap-2">
+                    <span className="w-1.5 h-1.5 bg-sky-500 rounded-full"></span>
+                    Nadwyżki / Deklaracje VAT
+                  </span>
+                  <span className="font-semibold text-slate-900">{importNotification.vatCount} szt.</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2">
+              <button
+                type="button"
+                className="w-full h-11 bg-slate-900 hover:bg-slate-800 text-white font-semibold text-xs rounded-xl shadow-sm transition-colors cursor-pointer"
+                onClick={() => setImportNotification(null)}
+                id="btn-close-import-success-toast"
+              >
+                Zamknij i przejdź do widoku
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* PDF Export Options Modal */}
       {isPdfModalOpen && (
         <PdfExportModal
           state={state}
           activeTab={activeTab}
           onClose={() => setIsPdfModalOpen(false)}
+        />
+      )}
+
+      {/* Interactive Helper Modal */}
+      {showHelper && (
+        <InteractiveHelpModal
+          onClose={() => setShowHelper(false)}
+          initialQuestion={helpActiveQuestion}
         />
       )}
 

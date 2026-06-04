@@ -10,6 +10,7 @@ import { MONTHS_PL, getMonthName } from '../utils/taxCalc';
 import {
   Plus,
   Trash2,
+  Edit,
   FileText,
   TrendingUp,
   TrendingDown,
@@ -76,6 +77,12 @@ export default function TransactionsManager({
   });
 
   const [formOpen, setFormOpen] = useState(false);
+
+  // Edit state variables
+  const [editingSale, setEditingSale] = useState<SaleTransaction | null>(null);
+  const [editingPurchase, setEditingPurchase] = useState<PurchaseTransaction | null>(null);
+  const [editingAdvance, setEditingAdvance] = useState<CitAdvance | null>(null);
+  const [editingVatReg, setEditingVatReg] = useState<VatRegistry | null>(null);
 
   // States for hidden explainer tooltips (Podpowiedzi ukryte)
   const [showSalesVatHelp, setShowSalesVatHelp] = useState(false);
@@ -258,6 +265,98 @@ export default function TransactionsManager({
     onVatRegistryChange(state.vatRegistry.filter(v => v.id !== id));
   };
 
+  // 1. SAVE EDITED SALE (propagate and recalculate dynamically)
+  const handleSaveEditSale = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingSale) return;
+    const nettoVal = editingSale.netto;
+    const rate = editingSale.stawkaVat;
+    if (isNaN(nettoVal) || nettoVal <= 0) {
+      alert('Wpisz poprawną kwotę netto sprzedaży.');
+      return;
+    }
+    if (!editingSale.numerFaktury) {
+      alert('Wpisz numer faktury.');
+      return;
+    }
+
+    const calculatedVat = Math.round(nettoVal * (rate / 100) * 100) / 100;
+    const updatedItem: SaleTransaction = {
+      ...editingSale,
+      vat: calculatedVat,
+      brutto: Math.round((nettoVal + calculatedVat) * 100) / 100,
+    };
+
+    const newSales = state.sales.map(s => s.id === updatedItem.id ? updatedItem : s);
+    onSalesChange(newSales);
+    setEditingSale(null);
+  };
+
+  // 2. SAVE EDITED PURCHASE (propagate and recalculate dynamically)
+  const handleSaveEditPurchase = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingPurchase) return;
+    const nettoVal = editingPurchase.netto;
+    const rate = editingPurchase.stawkaVat;
+    if (isNaN(nettoVal) || nettoVal <= 0) {
+      alert('Wpisz poprawną kwotę netto kosztu.');
+      return;
+    }
+    if (!editingPurchase.numerFaktury) {
+      alert('Wpisz numer faktury zakupu.');
+      return;
+    }
+
+    const calculatedVat = Math.round(nettoVal * (rate / 100) * 100) / 100;
+    const updatedItem: PurchaseTransaction = {
+      ...editingPurchase,
+      vat: calculatedVat,
+      brutto: Math.round((nettoVal + calculatedVat) * 100) / 100,
+    };
+
+    const newPurchases = state.purchases.map(p => p.id === updatedItem.id ? updatedItem : p);
+    onPurchasesChange(newPurchases);
+    setEditingPurchase(null);
+  };
+
+  // 3. SAVE EDITED ADVANCE (propagate and recalculate dynamically)
+  const handleSaveEditAdvance = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingAdvance) return;
+    const kwotaVal = editingAdvance.kwota;
+    if (isNaN(kwotaVal) || kwotaVal < 0) {
+      alert('Wpisz poprawną kwotę zaliczki CIT.');
+      return;
+    }
+
+    const updatedItem: CitAdvance = {
+      ...editingAdvance,
+    };
+
+    const newAdvances = state.citAdvances.map(a => a.id === updatedItem.id ? updatedItem : a);
+    onAdvancesChange(newAdvances);
+    setEditingAdvance(null);
+  };
+
+  // 4. SAVE EDITED VAT REGISTRY (propagate and recalculate dynamically)
+  const handleSaveEditVatReg = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingVatReg) return;
+    const nadwyzkaVal = editingVatReg.nadwyzkaZPoprzedniego;
+    if (isNaN(nadwyzkaVal) || nadwyzkaVal < 0) {
+      alert('Wpisz poprawną kwotę nadwyżki VAT z poprzedniego miesiąca.');
+      return;
+    }
+
+    const updatedItem: VatRegistry = {
+      ...editingVatReg,
+    };
+
+    const newRegistry = state.vatRegistry.map(v => v.id === updatedItem.id ? updatedItem : v);
+    onVatRegistryChange(newRegistry);
+    setEditingVatReg(null);
+  };
+
   return (
     <div className="bg-white rounded-3xl shadow-sm border border-slate-200 p-6 space-y-6" id="transactions-manager-component">
       
@@ -408,8 +507,8 @@ export default function TransactionsManager({
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-4 pt-4 md:col-span-2">
-                <label className="flex items-center gap-2 cursor-pointer text-slate-600 font-medium">
+              <div className="flex flex-wrap items-center gap-x-6 gap-y-3 pt-4 md:col-span-2">
+                <label className="flex items-center gap-1.5 cursor-pointer text-slate-600 font-medium select-none">
                   <input
                     type="checkbox"
                     checked={saleForm.czyCIT}
@@ -417,15 +516,45 @@ export default function TransactionsManager({
                     className="rounded border-slate-300 text-indigo-600 focus:ring-opacity-25 accent-indigo-600 w-4 h-4 cursor-pointer"
                   />
                   <span>Uwzględnij w przychodach CIT</span>
+                  <div className="group relative inline-block ml-0.5" onClick={(e) => e.stopPropagation()}>
+                    <Info className="w-3.5 h-3.5 text-indigo-600 hover:text-indigo-805 cursor-help transition-colors" />
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 w-72 p-3 bg-slate-900 border border-slate-800 text-slate-100 text-[11px] rounded-xl shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all duration-200 z-50 normal-case font-sans font-normal leading-relaxed">
+                      <div className="font-bold text-indigo-300 mb-1 flex items-center gap-1">
+                        <Info className="w-3 h-3 text-indigo-400" /> Przychody CIT (Podatek dochodowy)
+                      </div>
+                      <p className="text-slate-300 mb-1.5">
+                        <strong className="text-white">Kiedy zaznaczyć:</strong> Zaznacz dla standardowej sprzedaży usług lub towarów, która powiększa przychód firmy podlegający opodatkowaniu CIT.
+                      </p>
+                      <p className="text-slate-300">
+                        <strong className="text-white">Kiedy odznaczyć:</strong> Wyłącz dla wpływów niebędących przychodem podatkowym (np. zwrotne kaucje zabezpieczające, otrzymane pożyczki).
+                      </p>
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900"></div>
+                    </div>
+                  </div>
                 </label>
-                <label className="flex items-center gap-2 cursor-pointer text-slate-600 font-medium">
+                <label className="flex items-center gap-1.5 cursor-pointer text-slate-600 font-medium select-none">
                   <input
                     type="checkbox"
                     checked={saleForm.czyVAT}
                     onChange={(e) => setSaleForm({ ...saleForm, czyVAT: e.target.checked })}
                     className="rounded border-slate-300 text-indigo-600 focus:ring-opacity-25 accent-indigo-600 w-4 h-4 cursor-pointer"
                   />
-                  <span>Uwzględnij w rozliczeniach VAT naleznego</span>
+                  <span>Uwzględnij w rozliczeniach VAT należnego</span>
+                  <div className="group relative inline-block ml-0.5" onClick={(e) => e.stopPropagation()}>
+                    <Info className="w-3.5 h-3.5 text-indigo-600 hover:text-indigo-805 cursor-help transition-colors" />
+                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 w-72 p-3 bg-slate-900 border border-slate-800 text-slate-100 text-[11px] rounded-xl shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all duration-200 z-50 normal-case font-sans font-normal leading-relaxed">
+                      <div className="font-bold text-indigo-300 mb-1 flex items-center gap-1">
+                        <Info className="w-3 h-3 text-indigo-400" /> VAT Należny (Podatek od transakcji)
+                      </div>
+                      <p className="text-slate-300 mb-1.5">
+                        <strong className="text-white">Kiedy zaznaczyć:</strong> Dla każdej sprzedaży krajowej opodatkowanej VAT w Polsce (stawki: 23%, 8%, 5% oraz 0%).
+                      </p>
+                      <p className="text-slate-300">
+                        <strong className="text-white">Kiedy odznaczyć:</strong> Jeśli transakcja nie podlega pod ustawę o VAT (np. świadczenie usług poza terytorium kraju, gdzie podatnikiem jest nabywca – "reverse charge").
+                      </p>
+                      <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900"></div>
+                    </div>
+                  </div>
                 </label>
               </div>
 
@@ -505,15 +634,19 @@ export default function TransactionsManager({
                   value={purchaseForm.kategoria}
                   onChange={(e) => handlePurchaseCategoryChange(e.target.value)}
                 >
-                  <option value="Oprogramowanie">Oprogramowanie / Licencje SaaS</option>
-                  <option value="Serwery">Serwery i Chmura obliczeniowa</option>
-                  <option value="Biuro">Koszty biurowe i Czynsze</option>
-                  <option value="Pojazdy">Samochód i Paliwo</option>
-                  <option value="Marketing">Reklamy i Marketing</option>
-                  <option value="Usługi">Inne usługi obce</option>
+                  <option value="Oprogramowanie">Oprogramowanie / Licencje CAD, BIM i SaaS</option>
+                  <option value="Podwykonawcy">Podwykonawcy i Branżyści (instalacje, konstrukcja itp.)</option>
                   <option value="Wynagrodzenia etat">Wynagrodzenia - Umowa o pracę (etat)</option>
-                  <option value="Umowa zlecenie">Wynagrodzenia - Umowa zlecenie</option>
+                  <option value="Umowa zlecenie">Wynagrodzenia - Umowa zlecenie / B2B</option>
                   <option value="Umowa o dzieło">Wynagrodzenia - Umowa o dzieło</option>
+                  <option value="Biuro">Koszty biurowe, Czynsze i Media</option>
+                  <option value="Pojazdy">Samochody służbowe, Paliwo i Transport (pojazd)</option>
+                  <option value="Marketing">Marketing, Reklama i Konkursy architektoniczne</option>
+                  <option value="Szkolenia">Szkolenia, Konferencje i Certyfikaty</option>
+                  <option value="Sprzęt komputerowy">Sprzęt komputerowy, Plotery i Makiety 3D</option>
+                  <option value="Telefony">Telefony i Łączność</option>
+                  <option value="Usługi">Doradztwo, Księgowość i Obsługa prawna</option>
+                  <option value="Inne">Inne optymalne koszty</option>
                 </select>
               </div>
               <div className="flex flex-col gap-1.5">
@@ -685,6 +818,14 @@ export default function TransactionsManager({
                     ) : purchaseForm.kategoria === 'Umowa o dzieło' ? (
                       <p className="text-violet-950 bg-violet-50/80 rounded-lg p-1.5 border border-violet-100 font-sans">
                         ✍️ <b>UMOWA O DZIEŁO:</b> Wydatki na umowy o dzieło (np. przeniesienie praw autorskich z 50% kosztami uzyskania przychodów wykonawcy) stanowią tarcze podatkową CIT (KUP) w dacie ich wypłaty. Umowy te nie są objęte podatkiem VAT (brak odliczenia VAT, stawka 0%).
+                      </p>
+                    ) : purchaseForm.kategoria === 'Szkolenia' ? (
+                      <p className="text-indigo-950 bg-indigo-50/85 rounded-lg p-1.5 border border-indigo-100 font-sans">
+                        🎓 <b>SZKOLENIA I KONFERENCJE:</b> Wydatki na podnoszenie kwalifikacji zespołu (szkolenia BIM/Revit, uprawnienia projektowe oparte na ustawie, certyfikaty zawodowe, wejściówki na konferencje BHP i branżowe) stanowią w 100% CIT KUP i podlegają pełnemu odliczeniu 23% VAT, wzmacniając pozycję rynkową Twojego biura architektonicznego.
+                      </p>
+                    ) : purchaseForm.kategoria === 'Podwykonawcy' ? (
+                      <p className="text-cyan-950 bg-cyan-50/85 rounded-lg p-1.5 border border-cyan-100 font-sans">
+                        📐 <b>BRANŻYŚCI I PODWYKONAWCY:</b> Usługi projektowe podwykonawców (instalacje sanitarne, elektryczne, konstrukcje, projekty drogowe, geologia) to kluczowy i bezpośredni koszt realizacji Twoich zleceń architektonicznych. Faktury od nich pozwalają na pełne ujęcie kosztu w CIT (100% KUP) oraz pełne odliczenie VAT (100% z 23% VAT).
                       </p>
                     ) : (
                       <p>
@@ -884,13 +1025,26 @@ export default function TransactionsManager({
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-right">
-                        <button
-                          onClick={() => handleDeleteSale(s.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer hover:bg-rose-50"
-                          title="Usuń wpis"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => setEditingSale(s)}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors cursor-pointer hover:bg-indigo-50"
+                            title="Edytuj wpis"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Czy na pewno chcesz usunąć tę fakturę sprzedaży?')) {
+                                handleDeleteSale(s.id);
+                              }
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer hover:bg-rose-50"
+                            title="Usuń wpis"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -948,13 +1102,26 @@ export default function TransactionsManager({
                         </span>
                       </td>
                       <td className="px-5 py-3.5 text-right">
-                        <button
-                          onClick={() => handleDeletePurchase(p.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer hover:bg-rose-50"
-                          title="Usuń kosz"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => setEditingPurchase(p)}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors cursor-pointer hover:bg-indigo-50"
+                            title="Edytuj wpis"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Czy na pewno chcesz usunąć ten wydatek?')) {
+                                handleDeletePurchase(p.id);
+                              }
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer hover:bg-rose-50"
+                            title="Usuń wpis"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -990,12 +1157,26 @@ export default function TransactionsManager({
                       <td className="px-5 py-3.5 text-slate-600 font-mono">{adv.dataZaplaty}</td>
                       <td className="px-5 py-3.5 text-slate-500 font-medium italic">{adv.notatka}</td>
                       <td className="px-5 py-3.5 text-right">
-                        <button
-                          onClick={() => handleDeleteAdvance(adv.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer hover:bg-rose-50"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => setEditingAdvance(adv)}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors cursor-pointer hover:bg-indigo-50"
+                            title="Edytuj wpis"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Czy na pewno chcesz usunąć tę zaliczkę?')) {
+                                handleDeleteAdvance(adv.id);
+                              }
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer hover:bg-rose-50"
+                            title="Usuń wpis"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1039,12 +1220,26 @@ export default function TransactionsManager({
                       <td className="px-5 py-3.5 font-bold text-emerald-700 font-mono">+{formatPLN(v.nadwyzkaZPoprzedniego)}</td>
                       <td className="px-5 py-3.5 text-rose-700 font-mono">{formatPLN(v.korekty)}</td>
                       <td className="px-5 py-3.5 text-right">
-                        <button
-                          onClick={() => handleDeleteVatReg(v.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer hover:bg-rose-50"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </button>
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => setEditingVatReg(v)}
+                            className="p-1.5 text-slate-400 hover:text-indigo-600 rounded-lg transition-colors cursor-pointer hover:bg-indigo-50"
+                            title="Edytuj wpis"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => {
+                              if (window.confirm('Czy na pewno chcesz usunąć ten wpis nadwyżki VAT?')) {
+                                handleDeleteVatReg(v.id);
+                              }
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-lg transition-colors cursor-pointer hover:bg-rose-50"
+                            title="Usuń wpis"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -1055,6 +1250,494 @@ export default function TransactionsManager({
         )}
 
       </div>
+
+      {/* EDITING MODALS CONTAINER */}
+      {editingSale && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto" id="edit-sale-modal">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 max-w-2xl w-full relative">
+            <button
+              type="button"
+              onClick={() => setEditingSale(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl font-bold cursor-pointer bg-slate-100 hover:bg-slate-200 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+              title="Zamknij"
+            >
+              &times;
+            </button>
+            
+            <div className="space-y-4">
+              <div className="text-sm font-bold text-slate-800 flex items-center gap-2 font-display pb-2 border-b border-slate-100">
+                <Calculator className="w-5 h-5 text-indigo-600" />
+                <span>Edycja Rekordu Sprzedaży: <strong className="text-indigo-700">{editingSale.numerFaktury}</strong></span>
+              </div>
+              
+              <form onSubmit={handleSaveEditSale} className="space-y-4 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Data faktury</label>
+                    <input
+                      type="date"
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all"
+                      value={editingSale.data}
+                      onChange={(e) => setEditingSale({ ...editingSale, data: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-sans">Numer faktury</label>
+                    <input
+                      type="text"
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all font-mono"
+                      value={editingSale.numerFaktury}
+                      onChange={(e) => setEditingSale({ ...editingSale, numerFaktury: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5 md:col-span-2">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Kontrahent (Nabywca)</label>
+                    <input
+                      type="text"
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all"
+                      value={editingSale.kontrahent}
+                      onChange={(e) => setEditingSale({ ...editingSale, kontrahent: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Kwota Netto [PLN]</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all font-mono"
+                      value={editingSale.netto}
+                      onChange={(e) => setEditingSale({ ...editingSale, netto: parseFloat(e.target.value) || 0 })}
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Stawka VAT</label>
+                    <select
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs cursor-pointer focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all"
+                      value={editingSale.stawkaVat}
+                      onChange={(e) => setEditingSale({ ...editingSale, stawkaVat: parseFloat(e.target.value) || 0 })}
+                    >
+                      <option value="23">23%</option>
+                      <option value="8">8%</option>
+                      <option value="5">5%</option>
+                      <option value="0">0%</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-3 py-2 border-t border-b border-slate-100">
+                  <label className="flex items-center gap-1.5 cursor-pointer text-slate-600 font-medium select-none">
+                    <input
+                      type="checkbox"
+                      checked={editingSale.czyCIT}
+                      onChange={(e) => setEditingSale({ ...editingSale, czyCIT: e.target.checked })}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-opacity-25 accent-indigo-600 w-4 h-4 cursor-pointer"
+                    />
+                    <span>Uwzględnij w przychodach CIT</span>
+                    <div className="group relative inline-block ml-0.5" onClick={(e) => e.stopPropagation()}>
+                      <Info className="w-3.5 h-3.5 text-indigo-600 hover:text-indigo-805 cursor-help transition-colors" />
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 w-72 p-3 bg-slate-900 border border-slate-800 text-slate-100 text-[11px] rounded-xl shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all duration-200 z-50 normal-case font-sans font-normal leading-relaxed">
+                        <div className="font-bold text-indigo-300 mb-1 flex items-center gap-1">
+                          <Info className="w-3 h-3 text-indigo-400" /> Przychody CIT (Podatek dochodowy)
+                        </div>
+                        <p className="text-slate-300 mb-1.5">
+                          <strong className="text-white">Kiedy zaznaczyć:</strong> Zaznacz dla standardowej sprzedaży usług lub towarów, która powiększa przychód firmy podlegający opodatkowaniu CIT.
+                        </p>
+                        <p className="text-slate-300">
+                          <strong className="text-white">Kiedy odznaczyć:</strong> Wyłącz dla wpływów niebędących przychodem podatkowym (np. zwrotne kaucje zabezpieczające, otrzymane pożyczki).
+                        </p>
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900"></div>
+                      </div>
+                    </div>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer text-slate-600 font-medium select-none">
+                    <input
+                      type="checkbox"
+                      checked={editingSale.czyVAT}
+                      onChange={(e) => setEditingSale({ ...editingSale, czyVAT: e.target.checked })}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-opacity-25 accent-indigo-600 w-4 h-4 cursor-pointer"
+                    />
+                    <span>Uwzględnij w rozliczeniach VAT należnego</span>
+                    <div className="group relative inline-block ml-0.5" onClick={(e) => e.stopPropagation()}>
+                      <Info className="w-3.5 h-3.5 text-indigo-600 hover:text-indigo-805 cursor-help transition-colors" />
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2.5 w-72 p-3 bg-slate-900 border border-slate-800 text-slate-100 text-[11px] rounded-xl shadow-xl opacity-0 pointer-events-none group-hover:opacity-100 transition-all duration-200 z-50 normal-case font-sans font-normal leading-relaxed">
+                        <div className="font-bold text-indigo-300 mb-1 flex items-center gap-1">
+                          <Info className="w-3 h-3 text-indigo-400" /> VAT Należny (Podatek od transakcji)
+                        </div>
+                        <p className="text-slate-300 mb-1.5">
+                          <strong className="text-white">Kiedy zaznaczyć:</strong> Dla każdej sprzedaży krajowej opodatkowanej VAT w Polsce (stawki: 23%, 8%, 5% oraz 0%).
+                        </p>
+                        <p className="text-slate-300">
+                          <strong className="text-white">Kiedy odznaczyć:</strong> Jeśli transakcja nie podlega pod ustawę o VAT (np. świadczenie usług poza terytorium kraju, gdzie podatnikiem jest nabywca – "reverse charge").
+                        </p>
+                        <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-slate-900"></div>
+                      </div>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingSale(null)}
+                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl transition-all cursor-pointer"
+                  >
+                    Anuluj
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+                  >
+                    Zapisz zmiany
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingPurchase && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto" id="edit-purchase-modal">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 max-w-2xl w-full relative">
+            <button
+              type="button"
+              onClick={() => setEditingPurchase(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl font-bold cursor-pointer bg-slate-100 hover:bg-slate-200 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+              title="Zamknij"
+            >
+              &times;
+            </button>
+            
+            <div className="space-y-4">
+              <div className="text-sm font-bold text-slate-800 flex items-center gap-2 font-display pb-2 border-b border-slate-100">
+                <Calculator className="w-5 h-5 text-indigo-600" />
+                <span>Edycja Kosztu: <strong className="text-indigo-700">{editingPurchase.numerFaktury}</strong></span>
+              </div>
+              
+              <form onSubmit={handleSaveEditPurchase} className="space-y-4 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Data kosztu</label>
+                    <input
+                      type="date"
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all"
+                      value={editingPurchase.data}
+                      onChange={(e) => setEditingPurchase({ ...editingPurchase, data: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Numer faktury zakupu</label>
+                    <input
+                      type="text"
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all font-mono"
+                      value={editingPurchase.numerFaktury}
+                      onChange={(e) => setEditingPurchase({ ...editingPurchase, numerFaktury: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Sprzedawca / Dostawca</label>
+                    <input
+                      type="text"
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all"
+                      value={editingPurchase.dostawca}
+                      onChange={(e) => setEditingPurchase({ ...editingPurchase, dostawca: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Kategoria kosztowa</label>
+                    <select
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs cursor-pointer focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all"
+                      value={editingPurchase.kategoria}
+                      onChange={(e) => {
+                        const cat = e.target.value;
+                        const isEmployee = cat === 'Wynagrodzenia etat' || cat === 'Umowa zlecenie' || cat === 'Umowa o dzieło';
+                        setEditingPurchase({
+                          ...editingPurchase,
+                          kategoria: cat,
+                          ...(isEmployee ? {
+                            stawkaVat: 0,
+                            odliczenieVat: 0,
+                            kosztCIT: true
+                          } : {})
+                        });
+                      }}
+                    >
+                      <option value="Oprogramowanie">Oprogramowanie / Licencje CAD, BIM i SaaS</option>
+                      <option value="Podwykonawcy">Podwykonawcy i Branżyści (instalacje, konstrukcja itp.)</option>
+                      <option value="Wynagrodzenia etat">Wynagrodzenia - Umowa o pracę (etat)</option>
+                      <option value="Umowa zlecenie">Wynagrodzenia - Umowa zlecenie / B2B</option>
+                      <option value="Umowa o dzieło">Wynagrodzenia - Umowa o dzieło</option>
+                      <option value="Biuro">Koszty biurowe, Czynsze i Media</option>
+                      <option value="Pojazdy">Samochody służbowe, Paliwo i Transport (pojazd)</option>
+                      <option value="Marketing">Marketing, Reklama i Konkursy architektoniczne</option>
+                      <option value="Szkolenia">Szkolenia, Konferencje i Certyfikaty</option>
+                      <option value="Sprzęt komputerowy">Sprzęt komputerowy, Plotery i Makiety 3D</option>
+                      <option value="Telefony">Telefony i Łączność</option>
+                      <option value="Usługi">Doradztwo, Księgowość i Obsługa prawna</option>
+                      <option value="Inne">Inne optymalne koszty</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Kwota Netto [PLN]</label>
+                    <input
+                      type="number"
+                      step="0.01"
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all font-mono"
+                      value={editingPurchase.netto}
+                      onChange={(e) => setEditingPurchase({ ...editingPurchase, netto: parseFloat(e.target.value) || 0 })}
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Stawka VAT</label>
+                    <select
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs cursor-pointer focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all"
+                      value={editingPurchase.stawkaVat}
+                      onChange={(e) => setEditingPurchase({ ...editingPurchase, stawkaVat: parseFloat(e.target.value) || 0 })}
+                    >
+                      <option value="23">23%</option>
+                      <option value="8">8%</option>
+                      <option value="5">5%</option>
+                      <option value="0">0%</option>
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Odliczenie VAT</label>
+                    <select
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs cursor-pointer focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all"
+                      value={editingPurchase.odliczenieVat}
+                      onChange={(e) => setEditingPurchase({ ...editingPurchase, odliczenieVat: parseInt(e.target.value, 10) })}
+                    >
+                      <option value="100">100% (Pełne odliczenie)</option>
+                      <option value="50">50% (Cele mieszane / auto osobowe)</option>
+                      <option value="0">0% (Brak prawa do odliczenia)</option>
+                    </select>
+                  </div>
+                </div>
+                
+                <div className="flex flex-wrap gap-4 py-2 border-t border-b border-slate-100">
+                  <label className="flex items-center gap-2 cursor-pointer text-slate-600 font-medium select-none">
+                    <input
+                      type="checkbox"
+                      checked={editingPurchase.kosztCIT}
+                      onChange={(e) => setEditingPurchase({ ...editingPurchase, kosztCIT: e.target.checked })}
+                      className="rounded border-slate-300 text-indigo-600 focus:ring-opacity-25 accent-indigo-600 w-4 h-4 cursor-pointer"
+                    />
+                    <span>Koszt uzyskania przychodu (KUP)</span>
+                  </label>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditingPurchase(null)}
+                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl transition-all cursor-pointer"
+                  >
+                    Anuluj
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+                  >
+                    Zapisz zmiany
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingAdvance && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto" id="edit-advance-modal">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 max-w-xl w-full relative">
+            <button
+              type="button"
+              onClick={() => setEditingAdvance(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl font-bold cursor-pointer bg-slate-100 hover:bg-slate-200 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+              title="Zamknij"
+            >
+              &times;
+            </button>
+            
+            <div className="space-y-4">
+              <div className="text-sm font-bold text-slate-800 flex items-center gap-2 font-display pb-2 border-b border-slate-100">
+                <Calculator className="w-5 h-5 text-indigo-600" />
+                <span>Edycja Zaliczki CIT</span>
+              </div>
+              
+              <form onSubmit={handleSaveEditAdvance} className="space-y-4 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Miesiąc zaliczki</label>
+                    <select
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs cursor-pointer focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all font-medium"
+                      value={editingAdvance.miesiac}
+                      onChange={(e) => setEditingAdvance({ ...editingAdvance, miesiac: parseInt(e.target.value, 10) })}
+                    >
+                      {MONTHS_PL.map((mStr, idx) => (
+                        <option key={idx + 1} value={idx + 1}>
+                          {idx + 1} - {mStr.toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Suma zapłaconej zaliczki [PLN]</label>
+                    <input
+                      type="number"
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all font-mono"
+                      value={editingAdvance.kwota}
+                      onChange={(e) => setEditingAdvance({ ...editingAdvance, kwota: parseFloat(e.target.value) || 0 })}
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Data płatności</label>
+                    <input
+                      type="date"
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all"
+                      value={editingAdvance.dataZaplaty}
+                      onChange={(e) => setEditingAdvance({ ...editingAdvance, dataZaplaty: e.target.value })}
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Komentarz / Notatka</label>
+                    <input
+                      type="text"
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all"
+                      value={editingAdvance.notatka}
+                      onChange={(e) => setEditingAdvance({ ...editingAdvance, notatka: e.target.value })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-150">
+                  <button
+                    type="button"
+                    onClick={() => setEditingAdvance(null)}
+                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl transition-all cursor-pointer"
+                  >
+                    Anuluj
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+                  >
+                    Zapisz zmiany
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {editingVatReg && (
+        <div className="fixed inset-0 z-50 bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-4 overflow-y-auto" id="edit-vat-registry-modal">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl p-6 max-w-xl w-full relative">
+            <button
+              type="button"
+              onClick={() => setEditingVatReg(null)}
+              className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 text-xl font-bold cursor-pointer bg-slate-100 hover:bg-slate-200 w-8 h-8 rounded-full flex items-center justify-center transition-colors"
+              title="Zamknij"
+            >
+              &times;
+            </button>
+            
+            <div className="space-y-4">
+              <div className="text-sm font-bold text-slate-800 flex items-center gap-2 font-display pb-2 border-b border-slate-100">
+                <Calculator className="w-5 h-5 text-indigo-600" />
+                <span>Edycja Nadwyżek VAT</span>
+              </div>
+              
+              <form onSubmit={handleSaveEditVatReg} className="space-y-4 text-xs">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="flex flex-col gap-1.5 font-medium">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-sans">Dotyczy miesiąca</label>
+                    <select
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs cursor-pointer focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all"
+                      value={editingVatReg.miesiac}
+                      onChange={(e) => setEditingVatReg({ ...editingVatReg, miesiac: parseInt(e.target.value, 10) })}
+                    >
+                      {MONTHS_PL.map((mStr, idx) => (
+                        <option key={idx + 1} value={idx + 1}>
+                          {idx + 1} - {mStr.toUpperCase()}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="flex flex-col gap-1.5 font-mono">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-sans">Nadwyżka VAT przeniesiona [PLN]</label>
+                    <input
+                      type="number"
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all"
+                      value={editingVatReg.nadwyzkaZPoprzedniego}
+                      onChange={(e) => setEditingVatReg({ ...editingVatReg, nadwyzkaZPoprzedniego: parseFloat(e.target.value) || 0 })}
+                      required
+                  / >
+                  </div>
+                  <div className="flex flex-col gap-1.5 font-mono">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-sans font-sans">VAT Należny (Sprzedaż) [PLN]</label>
+                    <input
+                      type="number"
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all"
+                      value={editingVatReg.vatNalezny}
+                      onChange={(e) => setEditingVatReg({ ...editingVatReg, vatNalezny: parseFloat(e.target.value) || 0 })}
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5 font-mono">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-sans">VAT Naliczony (Koszty) [PLN]</label>
+                    <input
+                      type="number"
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all"
+                      value={editingVatReg.vatNaliczony}
+                      onChange={(e) => setEditingVatReg({ ...editingVatReg, vatNaliczony: parseFloat(e.target.value) || 0 })}
+                      required
+                    />
+                  </div>
+                  <div className="flex flex-col gap-1.5 font-mono">
+                    <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider font-sans">Korekty VAT JPK-V7 [PLN]</label>
+                    <input
+                      type="number"
+                      className="bg-white border border-slate-200 rounded-xl px-3 py-2 text-xs focus:ring-1 focus:ring-indigo-500 focus:border-indigo-500 text-slate-800 outline-hidden transition-all"
+                      value={editingVatReg.korekty}
+                      onChange={(e) => setEditingVatReg({ ...editingVatReg, korekty: parseFloat(e.target.value) || 0 })}
+                      required
+                    />
+                  </div>
+                </div>
+
+                <div className="flex justify-end gap-2 pt-2 border-t border-slate-150">
+                  <button
+                    type="button"
+                    onClick={() => setEditingVatReg(null)}
+                    className="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl transition-all cursor-pointer"
+                  >
+                    Anuluj
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl shadow-xs transition-all cursor-pointer"
+                  >
+                    Zapisz zmiany
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        </div>
+      )}
 
     </div>
   );
