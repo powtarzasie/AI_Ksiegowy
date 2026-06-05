@@ -1,6 +1,6 @@
 import React from 'react';
 import { AppState, MonthlySimulationResult } from '../types';
-import { calculateMonthlyTaxes, getMonthName, MONTHS_PL } from '../utils/taxCalc';
+import { calculateMonthlyTaxes, getMonthName, MONTHS_PL, isDateInMonth } from '../utils/taxCalc';
 import {
   TrendingUp,
   Percent,
@@ -76,6 +76,9 @@ export default function TaxDashboard({ state }: TaxDashboardProps) {
   const cumNetProfit = cumRevenue - cumCost - cumCITPaid;
   const cumNetMargin = cumRevenue > 0 ? (cumNetProfit / cumRevenue) * 105 : 0; // scaled nicely or capped
   const actualCumNetMargin = cumRevenue > 0 ? (cumNetProfit / cumRevenue) * 100 : 0;
+
+  const importUslugPurchases = state.purchases.filter(p => p.czyImportUslug && isDateInMonth(p.data, settings.rokPodatkowy, settings.miesiacPodatkowy));
+  const wirtualnyVatSuma = importUslugPurchases.reduce((sum, curr) => sum + curr.vat, 0);
 
   return (
     <div className="space-y-6" id="tax-dashboard-view">
@@ -322,6 +325,18 @@ export default function TaxDashboard({ state }: TaxDashboardProps) {
               <span className="text-slate-500 font-medium">Doraźne korekty deklaracji JPK-V7M:</span>
               <span className="font-extrabold text-slate-905 text-slate-800 font-mono">+{formatPLN(currentResult.korektyVat)}</span>
             </div>
+
+            {wirtualnyVatSuma > 0 && (
+              <div className="mt-3 p-3 bg-blue-50/60 border border-blue-100 rounded-xl text-xs text-blue-800 space-y-1">
+                <div className="font-bold flex items-center justify-between">
+                  <span>Wykryto Import Usług (zagraniczne zakupy):</span>
+                  <span className="font-mono bg-blue-100 px-1.5 py-0.5 rounded text-blue-900">{formatPLN(wirtualnyVatSuma)}</span>
+                </div>
+                <p className="text-[11px] leading-relaxed text-slate-600">
+                  Kwota ta została automatycznie dodana do <strong>VAT-u Należnego (sprzedaż)</strong> oraz <strong>VAT-u Naliczonego (zakupy)</strong>. Transakcja jest neutralna podatkowo pod warunkiem posiadania prawa do pełnego odliczenia.
+                </p>
+              </div>
+            )}
 
             <div className="p-3.5 bg-slate-50 rounded-xl space-y-1.5 text-[11px] text-slate-600 border border-slate-150 leading-relaxed font-sans mt-3">
               <span className="font-bold text-slate-700 flex items-center gap-1">

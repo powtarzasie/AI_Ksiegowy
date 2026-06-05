@@ -105,6 +105,7 @@ export function guessColumnMapping(sampleRow: any, type: ImportType): ColumnMapp
     kategoria: '',
     kosztCIT: '',
     odliczenieVat: '',
+    czyImportUslug: '',
     miesiac: '',
     kwota: '',
     dataZaplaty: '',
@@ -154,6 +155,7 @@ export function guessColumnMapping(sampleRow: any, type: ImportType): ColumnMapp
     mapping.kategoria = findMatch(['kategoria', 'typ', 'rodzaj', 'category']);
     mapping.kosztCIT = findMatch(['koszt cit', 'cit', 'kup', 'kup?']);
     mapping.odliczenieVat = findMatch(['odliczenie', 'odliczenie vat', 'procent odliczenia', 'wat', 'deduction']);
+    mapping.czyImportUslug = findMatch(['import', 'zagraniczna', 'country', 'reverse charge']);
   }
 
   // Common numeric and VAT mapping guesses
@@ -343,6 +345,7 @@ export function validateImportRows(
       const vatVal = mapping.vat ? parseNumber(row[mapping.vat]) : 0;
       const bruttoVal = mapping.brutto ? parseNumber(row[mapping.brutto]) : 0;
       const kosztCitVal = mapping.kosztCIT ? parseBoolean(row[mapping.kosztCIT], true) : true;
+      const czyImportUslugVal = mapping.czyImportUslug ? parseBoolean(row[mapping.czyImportUslug], false) : false;
       
       // Determine VAT deduction percentage
       const odliczenieValRaw = mapping.odliczenieVat ? row[mapping.odliczenieVat] : undefined;
@@ -415,9 +418,10 @@ export function validateImportRows(
         netto: nettoVal,
         stawkaVat: stawkaVal,
         vat: vatVal || expectedVat,
-        brutto: bruttoVal || (nettoVal + (vatVal || expectedVat)),
+        brutto: czyImportUslugVal ? nettoVal : (bruttoVal || (nettoVal + (vatVal || expectedVat))),
         kosztCIT: kosztCitVal,
-        odliczenieVat: odliczenieVatVal
+        odliczenieVat: odliczenieVatVal,
+        czyImportUslug: czyImportUslugVal
       } as PurchaseTransaction;
 
       // Accumulate
@@ -596,7 +600,7 @@ export function exportToExcel(state: AppState) {
 
   // Sheet 3: Zakupy i Koszty
   const purchaseHeaders = [
-    ['Data *', 'Numer Faktury *', 'Dostawca', 'Kategoria', 'Netto [PLN] *', 'Stawka VAT', 'VAT [PLN]', 'Brutto [PLN]', 'KUP do CIT (TAK/NIE)', 'Odliczenie VAT']
+    ['Data *', 'Numer Faktury *', 'Dostawca', 'Kategoria', 'Netto [PLN] *', 'Stawka VAT', 'VAT [PLN]', 'Brutto [PLN]', 'KUP do CIT (TAK/NIE)', 'Odliczenie VAT', 'Import Usług (TAK/NIE)']
   ];
   const purchaseRows = purchases.map((p) => [
     p.data,
@@ -608,7 +612,8 @@ export function exportToExcel(state: AppState) {
     p.vat,
     p.brutto,
     p.kosztCIT ? 'TAK' : 'NIE',
-    `${p.odliczenieVat}%`
+    `${p.odliczenieVat}%`,
+    p.czyImportUslug ? 'TAK' : 'NIE'
   ]);
   const purchaseWs = XLSX.utils.aoa_to_sheet([...purchaseHeaders, ...purchaseRows]);
   XLSX.utils.book_append_sheet(wb, purchaseWs, 'Rejestr Zakupów i Kosztów');

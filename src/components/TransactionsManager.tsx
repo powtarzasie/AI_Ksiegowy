@@ -58,7 +58,8 @@ export default function TransactionsManager({
     netto: '',
     stawkaVat: '23',
     kosztCIT: true,
-    odliczenieVat: '100'
+    odliczenieVat: '100',
+    czyImportUslug: false
   });
 
   const [advanceForm, setAdvanceForm] = useState({
@@ -168,6 +169,7 @@ export default function TransactionsManager({
     }
 
     const calculatedVat = Math.round(nettoVal * (rate / 100) * 100) / 100;
+    const isImport = purchaseForm.czyImportUslug;
     const item: PurchaseTransaction = {
       id: `purchase-${Date.now()}`,
       data: purchaseForm.data,
@@ -177,9 +179,10 @@ export default function TransactionsManager({
       netto: nettoVal,
       stawkaVat: rate,
       vat: calculatedVat,
-      brutto: Math.round((nettoVal + calculatedVat) * 100) / 100,
+      brutto: isImport ? nettoVal : Math.round((nettoVal + calculatedVat) * 100) / 100, // Kosztowo zapłaciliśmy kwotę netto
       kosztCIT: purchaseForm.kosztCIT,
-      odliczenieVat: parseInt(purchaseForm.odliczenieVat, 10)
+      odliczenieVat: parseInt(purchaseForm.odliczenieVat, 10),
+      czyImportUslug: isImport
     };
 
     onPurchasesChange([item, ...state.purchases]);
@@ -187,7 +190,8 @@ export default function TransactionsManager({
       ...purchaseForm,
       numerFaktury: '',
       dostawca: '',
-      netto: ''
+      netto: '',
+      czyImportUslug: false
     });
     setFormOpen(false);
   };
@@ -308,10 +312,11 @@ export default function TransactionsManager({
     }
 
     const calculatedVat = Math.round(nettoVal * (rate / 100) * 100) / 100;
+    const isImport = editingPurchase.czyImportUslug;
     const updatedItem: PurchaseTransaction = {
       ...editingPurchase,
       vat: calculatedVat,
-      brutto: Math.round((nettoVal + calculatedVat) * 100) / 100,
+      brutto: isImport ? nettoVal : Math.round((nettoVal + calculatedVat) * 100) / 100,
     };
 
     const newPurchases = state.purchases.map(p => p.id === updatedItem.id ? updatedItem : p);
@@ -781,7 +786,7 @@ export default function TransactionsManager({
                   </div>
                 )}
               </div>
-              <div className="flex items-center gap-4 pt-4">
+              <div className="flex flex-wrap items-center gap-6 pt-4 md:col-span-2 lg:col-span-4">
                 <label className="flex items-center gap-2 cursor-pointer text-slate-600 font-medium">
                   <input
                     type="checkbox"
@@ -791,6 +796,20 @@ export default function TransactionsManager({
                   />
                   <span>Koszt uzyskania przychodu (KUP)</span>
                 </label>
+                
+                <div className="flex items-center space-x-2 p-3 bg-blue-50/50 border border-blue-100 rounded-lg">
+                  <input
+                    type="checkbox"
+                    id="czyImportUslug"
+                    checked={purchaseForm.czyImportUslug}
+                    onChange={(e) => setPurchaseForm({ ...purchaseForm, czyImportUslug: e.target.checked })}
+                    className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                  />
+                  <label htmlFor="czyImportUslug" className="text-xs font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer">
+                    Faktura zagraniczna (Import usług / Licencje AI)
+                    <span className="text-[10px] bg-indigo-500/10 text-indigo-700 px-1.5 py-0.5 rounded font-mono font-bold uppercase">Reverse Charge</span>
+                  </label>
+                </div>
               </div>
 
               {/* Dynamic qualification guide box for Purchases */}
@@ -1081,7 +1100,14 @@ export default function TransactionsManager({
                   {state.purchases.map((p) => (
                     <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
                       <td className="px-5 py-3.5 font-semibold text-slate-900 font-mono">{p.data}</td>
-                      <td className="px-5 py-3.5 font-mono text-indigo-700 font-semibold">{p.numerFaktury}</td>
+                      <td className="px-5 py-3.5 font-mono text-indigo-700 font-semibold">
+                        {p.numerFaktury}
+                        {p.czyImportUslug && (
+                          <span className="ml-2 inline-flex items-center rounded-md bg-blue-50 px-1.5 py-0.5 text-[9px] font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10 font-sans" title="VAT naliczony i należny neutralizują się nawzajem">
+                            Import usług
+                          </span>
+                        )}
+                      </td>
                       <td className="px-5 py-3.5 text-slate-600">{p.dostawca}</td>
                       <td className="px-5 py-3.5">
                         <span className="bg-slate-100 border border-slate-200 text-slate-700 font-bold px-2 py-0.5 rounded-lg text-[9.5px]">
@@ -1522,7 +1548,7 @@ export default function TransactionsManager({
                   </div>
                 </div>
                 
-                <div className="flex flex-wrap gap-4 py-2 border-t border-b border-slate-100">
+                <div className="flex flex-col gap-4 py-3 border-t border-b border-slate-100">
                   <label className="flex items-center gap-2 cursor-pointer text-slate-600 font-medium select-none">
                     <input
                       type="checkbox"
@@ -1532,6 +1558,20 @@ export default function TransactionsManager({
                     />
                     <span>Koszt uzyskania przychodu (KUP)</span>
                   </label>
+                  
+                  <div className="flex items-center space-x-2 p-3 bg-blue-50/50 border border-blue-100 rounded-lg">
+                    <input
+                      type="checkbox"
+                      id="edit-czyImportUslug"
+                      checked={editingPurchase.czyImportUslug || false}
+                      onChange={(e) => setEditingPurchase({ ...editingPurchase, czyImportUslug: e.target.checked })}
+                      className="h-4 w-4 rounded border-slate-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                    />
+                    <label htmlFor="edit-czyImportUslug" className="text-xs font-semibold text-slate-700 flex items-center gap-1.5 cursor-pointer">
+                      Faktura zagraniczna (Import usług / Licencje AI)
+                      <span className="text-[10px] bg-indigo-500/10 text-indigo-700 px-1.5 py-0.5 rounded font-mono font-bold uppercase">Reverse Charge</span>
+                    </label>
+                  </div>
                 </div>
 
                 <div className="flex justify-end gap-2 pt-2">

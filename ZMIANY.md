@@ -1,5 +1,10 @@
 # Dziennik Zmian (Changelog)
 
+- **Audyt techniczny pod kompilację .exe**: Przeprowadzono końcowe sprawdzenie spójności i integralności kodu względem wyśrubowanych reguł kompilatora Electron z webpack.
+- **Naprawa typowania TypeScript dla Master Export**: Dodano brakujące pole `czyImportUslug` do reguły mapowania w `excelHandler.ts`, znosząc tym samym jedyny błąd emitowany przy pakowaniu produkcyjnym.
+- **Zweryfikowano zbieżność endpointów Express i React**: Upewniono się, że wszystkie 9 punktów styku API pomiędzy interfejsem graficznym a zapleczem serwera mają poprawne definicje z pełną obsługą błędów.
+- **Potwierdzono wymogi Electron Main**: Proces `server.ts` jest w pełni przystosowany do izolacji CJS bez użycia `import.meta.url`, gwarantując natychmiastowe ładowanie portu 3000 i pomyślne "smoke-testy" okna bez efektu białego ekranu przy starcie w Windows.
+
 - **Sprawdzian końcowy i regresja**: Zakończono ostateczny przegląd aplikacji przed kompilacją do pliku .exe. Pomyślnie przeprowadzono testy build (`vite build` oraz `esbuild` do formatu CJS) potwierdzające absolutny brak błędów TypeScript i problemów z resolucją modułów.
 - **Weryfikacja API obsługującego pliki (Kopie zapasowe)**: Skonrolowano Endpointy REST (`/api/db/backups`, `/api/db/restore`, `/api/db/backup`, `/api/db/save`), gwarantując pełną zgodność UI (zakładka StorageControls) do backendu (Express) i zapewniono, że mechanizmy zapisu atomowego bezawaryjnie aktualizują pliki bazodanowe zachowując strukturę katalogu `backups/`.
 - **Pełna kompatybilność Desktop / Electron**: Skonfigurowano wiążące nasłuchiwanie pętli zwrotnej `127.0.0.1:3000` na serwerze wewnętrznym; upewniono się, że proces Main z Electron celnie wywołuje poprawny URL i prawidłowo realizuje komunikację IPC poprzez unikalne id komponentów frontendowych.

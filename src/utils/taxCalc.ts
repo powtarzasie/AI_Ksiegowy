@@ -90,6 +90,7 @@ export function calculateMonthlyTaxes(
   let kosztyNetto = 0;
   let kosztyKUP = 0;
   let vatNaliczonySuma = 0;
+  let wirtualnyVatNaleznyZImportu = 0;
 
   monthPurchases.forEach((p) => {
     kosztyNetto += p.netto;
@@ -99,9 +100,16 @@ export function calculateMonthlyTaxes(
     const deductibleVat = p.vat * (dedPercent / 100);
     vatNaliczonySuma += deductibleVat;
 
+    if (p.czyImportUslug) {
+      wirtualnyVatNaleznyZImportu += p.vat;
+    }
+
     // Sum KUP using central business rule including 75% limit for cars
     kosztyKUP += calculatePurchaseKUP(p);
   });
+  
+  // Wirtualny VAT z importu powiększa również VAT należny dla zachowania neutralności
+  vatNaleznySuma += wirtualnyVatNaleznyZImportu;
 
   // 4. CIT Calculations (Cumulative & Progressive for Polish Sp. z o.o.)
   // Let's compute YTD (Cumulative) CIT values up to month 'month'

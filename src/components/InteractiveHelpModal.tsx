@@ -33,7 +33,7 @@ export default function InteractiveHelpModal({
   onClose,
   initialQuestion = 'all'
 }: InteractiveHelpModalProps) {
-  const [activeQuestion, setActiveQuestion] = useState<'all' | 'nip' | 'cit_vs_vat' | 'cars_and_other' | 'start_balance' | 'ai_privacy' | 'ai_cost' | 'target_disclaimer'>('all');
+  const [activeQuestion, setActiveQuestion] = useState<'all' | 'nip' | 'cit_vs_vat' | 'cars_and_other' | 'start_balance' | 'ai_privacy' | 'ai_cost' | 'target_disclaimer' | 'local_llm' | 'import_uslug'>('all');
 
   // Synchronize with initialQuestion if provided
   useEffect(() => {
@@ -92,6 +92,7 @@ export default function InteractiveHelpModal({
               { tag: 'ai_privacy', label: '🛡️ Prywatność & Co wysyłamy do AI?' },
               { tag: 'ai_cost', label: '💸 Rozliczenie & Darmowy Klucz API' },
               { tag: 'local_llm', label: '🔌 Konfiguracja LM Studio / Ollama' },
+              { tag: 'import_uslug', label: '🌍 Import Usług (Licencje, AI)' },
               { tag: 'nip', label: '🏢 Po co mi Nazwa i NIP?' },
               { tag: 'cit_vs_vat', label: '📊 CIT vs VAT (Szybki skrót)' },
               { tag: 'cars_and_other', label: '🚗 Samochody, Hotele i Odliczenia' },
@@ -317,6 +318,43 @@ export default function InteractiveHelpModal({
                       </ol>
                     </div>
                   </div>
+                </div>
+              </div>
+            )}
+
+            {/* Question: Import usług (faktury zagraniczne) */}
+            {(activeQuestion === 'all' || activeQuestion === 'import_uslug') && (
+              <div className="bg-slate-850/60 border border-slate-800 rounded-2xl p-5 md:p-6 space-y-4 col-span-1 md:col-span-2 shadow-sm text-left">
+                <div className="flex items-center gap-2 border-b border-slate-800 pb-3">
+                  <span className="text-xl">🌍</span>
+                  <h4 className="font-bold text-white text-sm font-display tracking-tight">
+                    Import Usług – Jak rozliczać zagraniczne faktury z mechanizmem "Reverse Charge"?
+                  </h4>
+                </div>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 text-[11px] leading-relaxed">
+                  <div className="space-y-2 text-slate-300">
+                    <span className="font-bold text-emerald-400 block">Krótka zasada: Co to jest Import Usług?</span>
+                    <p>
+                      Są to wszystkie faktury zakupowe od firm z zagranicy (nawet z 0% lub brakiem stawki VAT na rachunku), za które zapłaciłeś i zaksięgowałeś w przeliczeniu na PLN kwotę netto. Np. subskrypcje sztucznej inteligencji (OpenAI, Claude, Midjourney), opłaty za zagraniczny hosting (AWS, Vercel, usługi z USA), reklamy zagraniczne (Facebook / Meta, Google Ads) lub szkolenia.
+                    </p>
+                    <p className="font-bold text-slate-200 mt-2">Dla Twojej wygody przygotowaliśmy dedykowany przełącznik w oknie dodawania nowej transakcji "Import usług (Reverse Charge)".</p>
+                  </div>
+                  <div className="space-y-2 text-slate-300">
+                    <span className="font-bold text-indigo-400 block">Mechanizm wirtualnego VAT-u (Odwrotne Obciążenie)</span>
+                    <p>
+                      Kiedy zaznaczysz ten przełącznik i ustawisz stawkę właściwą dla usług w Polsce (najczęściej 23%), platforma automatycznie zastosuje mechanizm tzw. "Samoobciążenia":
+                    </p>
+                    <ul className="list-disc pl-4 space-y-1.5 mt-2">
+                       <li>Fizycznie Twój koszt do zapłaty pozostanie na poziomie Kwoty Netto PLN (brutto = netto).</li>
+                       <li>Wbudowany algorytm doliczy wirtualny podatek VAT do VAT-u Należnego (jakby to była sprzedaż).</li>
+                       <li>Jednocześnie odliczy tą samą wartość przypisując ją do VAT-u Naliczonego. Transakcja jest całkowicie 'przezroczysta' dla limitu VAT'u!</li>
+                    </ul>
+                  </div>
+                </div>
+                <div className="bg-indigo-950/45 border border-indigo-900/60 rounded-xl p-3 text-[10.5px] text-slate-300 mt-3 flex items-start gap-2.5">
+                  <AlertCircle className="w-4 h-4 text-indigo-400 shrink-0 mt-0.5" />
+                  <p>Innymi słowy, kwota VAT wychodzi zupełnie na tzw. "0" o ile dysponujesz 100% prawem do doliczenia (ewentualny VAT nieodliczony przy proporcji 50% jest również obsługiwany automatycznie w powiększaniu do CIT), księgując pełną dopuszczalną wartość kosztową od podstawy dochodu. Dodany Wirtualny VAT zostanie także wyraźnie zaakcentowany przez AI w zakładce Pulpitu Głównego przy wskaźnikach podatku VAT.</p>
                 </div>
               </div>
             )}

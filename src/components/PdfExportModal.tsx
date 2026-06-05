@@ -969,7 +969,10 @@ export default function PdfExportModal({ state, activeTab, onClose }: PdfExportM
                             <span>{formatPLN(p.netto)}</span>
                           </div>
                           <div className="flex justify-between text-slate-400 text-[10px]">
-                            <span>FV: {p.numerFaktury} • {p.kategoria}</span>
+                            <span>
+                              FV: {p.numerFaktury} • {p.kategoria}
+                              {p.czyImportUslug && <span className="ml-1 text-blue-600 bg-blue-50 px-1 py-0.5 rounded font-black">[IMPORT]</span>}
+                            </span>
                             <span>KUP: {p.kosztCIT ? 'TAK' : 'NIE'} • VAT: {p.odliczenieVat}%</span>
                           </div>
                         </div>

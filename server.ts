@@ -339,6 +339,8 @@ async function startServer() {
 Twoim celem jest pomoc właścicielowi biura architektonicznego (PKD 71.11.Z - "Działalność w zakresie architektury") w LEGALNEJ i bezpiecznej optymalizacji podatkowej.
 Zasugeruj jak najszersze, w pełni zgodne z literą prawa (100% legalne), zakwalifikowanie podanego wydatku jako koszt uzyskania przychodu (KUP) w spółce z o.o.
 
+Pamiętaj: Wszystkie zakupy licencji oprogramowania, hostingu, czy usług marketingowych od firm z siedzibą poza Polską (np. USA, Irlandia) są traktowane jako Import Usług. Jako czynny podatnik VAT wykazany w systemie, musisz zaznaczyć opcję 'Import usług' w aplikacji. System automatycznie skalkuluje podatek VAT na poziomie 23%, wykazując go jednocześnie jako podatek należny i naliczony, co zaowocuje zerowym kosztem netto podatku (neutralność VAT), księgując jednocześnie pełną wartość netto faktury bezpośrednio w koszty uzyskania przychodu (CIT).
+
 Przeanalizuj wydatek w kontekście polskiej ustawy o podatku dochodowym od osób prawnych (Ustawa o CIT) – zwłaszcza art. 15 ust. 1, oraz ustawy o VAT (prawo do odliczenia z uwzględnieniem ograniczeń np. gastronomii czy pojazdów).
 Wydaj jednoznaczną ocenę ("Zielone", "Żółte" lub "Czerwone" światło):
 - Zielone światło (Bezpieczny koszt): Koszt bezpośrednio związany z projektowaniem, pracownią, marketingiem lub BHP. Nie budzi wątpliwości fiskusa.

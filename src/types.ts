@@ -32,6 +32,7 @@ export interface PurchaseTransaction {
   brutto: number;
   kosztCIT: boolean;
   odliczenieVat: number; // Percent: 0, 50 (for mixed passenger cars usage), or 100
+  czyImportUslug?: boolean; // flag indicating reverse charge foreign invoice
 }
 
 export interface CitAdvance {
@@ -122,6 +123,7 @@ export interface ColumnMapping {
   kategoria: string;
   kosztCIT: string;
   odliczenieVat: string;
+  czyImportUslug: string;
 
   // CIT Advance specifics
   miesiac: string;
