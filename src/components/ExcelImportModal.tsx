@@ -816,6 +816,20 @@ export default function ExcelImportModal({
                             </select>
                           </td>
                         </tr>
+                        <tr>
+                          <td className="px-4 py-3 font-semibold text-gray-950">Import Usług / Wydatki Zagraniczne</td>
+                          <td className="px-4 py-3 text-gray-500">Czy to faktura zagraniczna (odwrotne obciążenie)?</td>
+                          <td className="px-4 py-3">
+                            <select
+                              className="w-full h-8 px-2 bg-gray-50 border border-gray-200 rounded text-xs"
+                              value={mapping.czyImportUslug}
+                              onChange={(e) => handleMappingFieldChange('czyImportUslug', e.target.value)}
+                            >
+                              <option value="">-- pomiń i nic nie wpisuj (domyślnie NIE) --</option>
+                              {sampleColumns.map(c => <option key={c} value={c}>{c}</option>)}
+                            </select>
+                          </td>
+                        </tr>
                       </>
                     )}
 

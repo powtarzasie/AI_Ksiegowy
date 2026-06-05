@@ -1,5 +1,9 @@
 # Dziennik Zmian (Changelog)
 
+- **Ostateczny audyt techniczny (Executable Ready)**: Przeprowadzono kompleksową inspekcję całego kodu źródłowego (front-end i backend) przed wypuszczeniem wersji instalacyjnej `.exe`.
+- **Weryfikacja parametrów kompilacji**: Potwierdzono 100% zgodność portów (3000), adresów (127.0.0.1 zamiast localhost), odpowiednich metod zapisu oraz kompatybilności API z aplikacją React.
+- **Czystość kodu**: Potwierdzono brak tzw. martwego kodu, zepsutych importów oraz poprawność działania kompilatorów TypeScript i ESBuild dla środowisk Node.js/Electron.
+
 - **Audyt techniczny pod kompilację .exe**: Przeprowadzono końcowe sprawdzenie spójności i integralności kodu względem wyśrubowanych reguł kompilatora Electron z webpack.
 - **Naprawa typowania TypeScript dla Master Export**: Dodano brakujące pole `czyImportUslug` do reguły mapowania w `excelHandler.ts`, znosząc tym samym jedyny błąd emitowany przy pakowaniu produkcyjnym.
 - **Zweryfikowano zbieżność endpointów Express i React**: Upewniono się, że wszystkie 9 punktów styku API pomiędzy interfejsem graficznym a zapleczem serwera mają poprawne definicje z pełną obsługą błędów.

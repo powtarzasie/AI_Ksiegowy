@@ -849,6 +849,7 @@ export function validateAndParseMasterExcel(sheets: { [sheetName: string]: any[]
       const bruttoVal = parseNumValue(row[map.brutto]);
       const kosztCitVal = parseBoolValue(row[map.kosztCIT], true);
       const odliczenieVatVal = parseDeductionPercent(row[map.odliczenieVat]);
+      const czyImportUslugVal = parseBoolValue(row[map.czyImportUslug], false);
 
       if (!dataVal && !nrVal && nettoVal === 0) return;
 
@@ -875,9 +876,10 @@ export function validateAndParseMasterExcel(sheets: { [sheetName: string]: any[]
         netto: nettoVal,
         stawkaVat: stawkaVal,
         vat: vatVal || expectedVat,
-        brutto: bruttoVal || (nettoVal + (vatVal || expectedVat)),
+        brutto: czyImportUslugVal ? nettoVal : (bruttoVal || (nettoVal + (vatVal || expectedVat))),
         kosztCIT: kosztCitVal,
-        odliczenieVat: odliczenieVatVal
+        odliczenieVat: odliczenieVatVal,
+        czyImportUslug: czyImportUslugVal
       });
     });
   } else {
