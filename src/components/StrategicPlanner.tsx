@@ -124,6 +124,18 @@ const formatPLN = (num: number) => {
   return `${resultStr} zł`;
 };
 
+// Helper function to format planned months for current or next year
+const getPlannedMonthLabel = (m: number, baseYear: number = 2026) => {
+  if (m <= 12) {
+    const monthName = new Date(baseYear, m - 1, 1).toLocaleString('pl-PL', { month: 'short' });
+    return `${m} (${monthName}) ${baseYear} r.`;
+  } else {
+    const nextMonth = m - 12;
+    const monthName = new Date(baseYear + 1, nextMonth - 1, 1).toLocaleString('pl-PL', { month: 'short' });
+    return `${nextMonth} (${monthName}) ${baseYear + 1} r. (kolejny rok)`;
+  }
+};
+
 interface StrategicPlannerProps {
   state: AppState;
 }
@@ -340,11 +352,11 @@ export default function StrategicPlanner({ state }: StrategicPlannerProps) {
 
       {/* Top metrics dashboard */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-5" id="strategic-metrics-grid">
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 p-6 flex items-center gap-4.5 shadow-xs">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 p-6 flex items-center justify-between gap-4.5 shadow-xs">
           <div className="w-12 h-12 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
             <TrendingUp className="w-6 h-6" />
           </div>
-          <div className="space-y-0.5">
+          <div className="space-y-0.5 text-right flex-1">
             <span className="text-[11px] font-black text-slate-400 block uppercase tracking-wider">Aktywne prognozowane przychody</span>
             <div className="text-xl font-mono font-black text-slate-900">
               +{formatPLN(activeFutureRevenues)}
@@ -353,11 +365,11 @@ export default function StrategicPlanner({ state }: StrategicPlannerProps) {
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 p-6 flex items-center gap-4.5 shadow-xs">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 p-6 flex items-center justify-between gap-4.5 shadow-xs">
           <div className="w-12 h-12 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center shrink-0">
             <Layers className="w-6 h-6" />
           </div>
-          <div className="space-y-0.5">
+          <div className="space-y-0.5 text-right flex-1">
             <span className="text-[11px] font-black text-slate-400 block uppercase tracking-wider">Aktywne planowane wydatki (KUP)</span>
             <div className="text-xl font-mono font-black text-slate-900">
               -{formatPLN(activeFutureExpensesKUP)}
@@ -366,11 +378,11 @@ export default function StrategicPlanner({ state }: StrategicPlannerProps) {
           </div>
         </div>
 
-        <div className="bg-gradient-to-br from-indigo-50/50 to-emerald-50/20 rounded-2xl border border-indigo-100 p-5 p-6 flex items-center gap-4.5 shadow-xs">
+        <div className="bg-gradient-to-br from-indigo-50/50 to-emerald-50/20 rounded-2xl border border-indigo-100 p-5 p-6 flex items-center justify-between gap-4.5 shadow-xs">
           <div className="w-12 h-12 rounded-xl bg-indigo-600 text-white flex items-center justify-center shrink-0 shadow-sm">
             <PiggyBank className="w-6 h-6" />
           </div>
-          <div className="space-y-0.5">
+          <div className="space-y-0.5 text-right flex-1">
             <span className="text-[11px] font-black text-indigo-750 text-indigo-700 block uppercase tracking-wider">Tarcza podatkowa CIT Shield</span>
             <div className="text-xl font-mono font-black text-emerald-700">
               {formatPLN(totalPossibleExpensesTaxSaving)}
@@ -534,9 +546,9 @@ export default function StrategicPlanner({ state }: StrategicPlannerProps) {
                                   onChange={(e) => setEditingExpenseData({ ...editingExpenseData, miesiacPlanowany: parseInt(e.target.value, 10) })}
                                   className="w-full border border-slate-200 rounded-lg px-1 py-1.5 bg-white outline-indigo-500 text-slate-700 font-bold cursor-pointer text-[10.5px]"
                                 >
-                                  {Array.from({ length: 12 }, (_, i) => (
+                                  {Array.from({ length: 24 }, (_, i) => (
                                     <option key={i + 1} value={i + 1}>
-                                      {i + 1} ({new Date(2026, i, 1).toLocaleString('pl-PL', { month: 'short' })})
+                                      {getPlannedMonthLabel(i + 1, settings.rokPodatkowy)}
                                     </option>
                                   ))}
                                 </select>
@@ -572,7 +584,7 @@ export default function StrategicPlanner({ state }: StrategicPlannerProps) {
                                 {exp.kategoria}
                               </span>
                               <span className="text-[9.5px] text-slate-400 font-mono font-medium">
-                                Miesiąc: {exp.miesiacPlanowany} ({new Date(2026, exp.miesiacPlanowany - 1, 1).toLocaleString('pl-PL', { month: 'short' })})
+                                Miesiąc: {getPlannedMonthLabel(exp.miesiacPlanowany, settings.rokPodatkowy)}
                               </span>
                               {exp.prawdopodobienstwo === 'wysokie' && (
                                 <span className="text-[9px] bg-emerald-50 text-emerald-800 border border-emerald-100 font-bold px-1.5 py-0.5 rounded uppercase">
@@ -687,9 +699,9 @@ export default function StrategicPlanner({ state }: StrategicPlannerProps) {
                         onChange={(e) => setNewExpMonth(parseInt(e.target.value, 10))}
                         className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-2 bg-white outline-indigo-500 text-slate-700 font-bold cursor-pointer"
                       >
-                        {Array.from({ length: 12 }, (_, i) => (
+                        {Array.from({ length: 24 }, (_, i) => (
                           <option key={i + 1} value={i + 1}>
-                            {i + 1} ({new Date(2026, i, 1).toLocaleString('pl-PL', { month: 'short' })})
+                            {getPlannedMonthLabel(i + 1, settings.rokPodatkowy)}
                           </option>
                         ))}
                       </select>
@@ -830,9 +842,9 @@ export default function StrategicPlanner({ state }: StrategicPlannerProps) {
                                   onChange={(e) => setEditingRevenueData({ ...editingRevenueData, miesiacPlanowany: parseInt(e.target.value, 10) })}
                                   className="w-full border border-slate-200 rounded-lg px-1 py-1.5 bg-white outline-emerald-500 text-slate-700 font-bold cursor-pointer text-[10.5px]"
                                 >
-                                  {Array.from({ length: 12 }, (_, i) => (
+                                  {Array.from({ length: 24 }, (_, i) => (
                                     <option key={i + 1} value={i + 1}>
-                                      {i + 1} ({new Date(2026, i, 1).toLocaleString('pl-PL', { month: 'short' })})
+                                      {getPlannedMonthLabel(i + 1, settings.rokPodatkowy)}
                                     </option>
                                   ))}
                                 </select>
@@ -868,7 +880,7 @@ export default function StrategicPlanner({ state }: StrategicPlannerProps) {
                                 {rev.kategoria}
                               </span>
                               <span className="text-[9.5px] text-slate-400 font-mono font-medium">
-                                Miesiąc: {rev.miesiacPlanowany} ({new Date(2026, rev.miesiacPlanowany - 1, 1).toLocaleString('pl-PL', { month: 'short' })})
+                                Miesiąc: {getPlannedMonthLabel(rev.miesiacPlanowany, settings.rokPodatkowy)}
                               </span>
                               {rev.prawdopodobienstwo === 'wysokie' && (
                                 <span className="text-[9px] bg-emerald-50 text-emerald-800 border border-emerald-100 font-bold px-1.5 py-0.5 rounded uppercase">
@@ -981,9 +993,9 @@ export default function StrategicPlanner({ state }: StrategicPlannerProps) {
                         onChange={(e) => setNewRevMonth(parseInt(e.target.value, 10))}
                         className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-2 bg-white outline-emerald-500 text-slate-700 font-bold cursor-pointer"
                       >
-                        {Array.from({ length: 12 }, (_, i) => (
+                        {Array.from({ length: 24 }, (_, i) => (
                           <option key={i + 1} value={i + 1}>
-                            {i + 1} ({new Date(2026, i, 1).toLocaleString('pl-PL', { month: 'short' })})
+                            {getPlannedMonthLabel(i + 1, settings.rokPodatkowy)}
                           </option>
                         ))}
                       </select>

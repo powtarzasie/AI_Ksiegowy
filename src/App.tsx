@@ -35,14 +35,18 @@ import {
 
 const LOCAL_STORAGE_KEY = 'symulator_podatkow_state_v2';
 
+const CURRENT_DATE = new Date();
+const CURRENT_YEAR = CURRENT_DATE.getFullYear();
+const CURRENT_MONTH = CURRENT_DATE.getMonth() + 1;
+
 // Detailed, high-fidelity sample state so the app looks fantastic on first load
 const SAMPLE_STATE: AppState = {
   settings: {
     nazwaSpolki: 'JA',
     nip: '1',
     stawkaCIT: 9, // Obniżona stawka CIT dla małych podatników
-    rokPodatkowy: 2026,
-    miesiacPodatkowy: 5 // Maj
+    rokPodatkowy: CURRENT_YEAR,
+    miesiacPodatkowy: CURRENT_MONTH
   },
   sales: [
     // Monthly aggregations (styczeń - kwiecień)
@@ -363,8 +367,8 @@ const EMPTY_STATE: AppState = {
     nazwaSpolki: '',
     nip: '',
     stawkaCIT: 9,
-    rokPodatkowy: 2026,
-    miesiacPodatkowy: 5
+    rokPodatkowy: CURRENT_YEAR,
+    miesiacPodatkowy: CURRENT_MONTH
   },
   sales: [],
   purchases: [],
@@ -386,18 +390,35 @@ export default function App() {
       if (saved) {
         const parsed = JSON.parse(saved);
         if (parsed && parsed.settings && Array.isArray(parsed.sales)) {
+          // Force active filters to current year and current month on app start
+          parsed.settings.rokPodatkowy = CURRENT_YEAR;
+          parsed.settings.miesiacPodatkowy = CURRENT_MONTH;
           return parsed as AppState;
         }
       }
       
       const chosen = localStorage.getItem('tax_app_initial_chosen');
       if (chosen === 'empty') {
-        return EMPTY_STATE;
+        return {
+          ...EMPTY_STATE,
+          settings: {
+            ...EMPTY_STATE.settings,
+            rokPodatkowy: CURRENT_YEAR,
+            miesiacPodatkowy: CURRENT_MONTH
+          }
+        };
       }
     } catch (e) {
       console.warn('Could not read state from localStorage, loading template', e);
     }
-    return SAMPLE_STATE;
+    return {
+      ...SAMPLE_STATE,
+      settings: {
+        ...SAMPLE_STATE.settings,
+        rokPodatkowy: CURRENT_YEAR,
+        miesiacPodatkowy: CURRENT_MONTH
+      }
+    };
   });
 
   const [showLaunchChoices, setShowLaunchChoices] = useState<boolean>(() => {
@@ -451,28 +472,38 @@ export default function App() {
   const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 1024 * 1024) {
-        alert('Plik logo jest za duży! Maksymalna wielkość to 1MB.');
+      if (file.size > 8 * 1024 * 1024) {
+        alert('Plik logo jest za duży! Maksymalna wielkość to 8MB.');
+        e.target.value = '';
         return;
       }
       const reader = new FileReader();
+      const targetInput = e.target;
       reader.onload = (event) => {
         const base64 = event.target?.result as string;
-        handleSettingsChange({
-          ...state.settings,
-          customLogoBase64: base64
-        });
+        setState((prev) => ({
+          ...prev,
+          settings: {
+            ...prev.settings,
+            customLogoBase64: base64
+          }
+        }));
+        targetInput.value = '';
       };
       reader.readAsDataURL(file);
     }
   };
 
   const handleLogoRemove = (e: React.MouseEvent) => {
+    e.preventDefault();
     e.stopPropagation();
-    handleSettingsChange({
-      ...state.settings,
-      customLogoBase64: undefined
-    });
+    setState((prev) => ({
+      ...prev,
+      settings: {
+        ...prev.settings,
+        customLogoBase64: undefined
+      }
+    }));
   };
   const [lastSavedTime, setLastSavedTime] = useState<string>(() => {
     return new Date().toLocaleString('pl-PL', {
@@ -495,9 +526,12 @@ export default function App() {
           if (resJson.status === 'success' && resJson.data) {
             const diskState = resJson.data;
             if (diskState && diskState.settings && Array.isArray(diskState.sales)) {
+              // Always override active filter year and month with current calendar date on app launch
+              diskState.settings.rokPodatkowy = CURRENT_YEAR;
+              diskState.settings.miesiacPodatkowy = CURRENT_MONTH;
               setState(diskState);
               setIsDiskSaved(true);
-              console.log('Stan aplikacji załadowany pomyślnie z pliku fizycznego na dysku.');
+              console.log('Stan aplikacji załadowany pomyślnie z pliku fizycznego na dysku z domyślnym filtrem ustawionym na bieżący rok i miesiąc.');
             }
           }
         }
@@ -774,7 +808,10 @@ export default function App() {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans leading-normal selection:bg-indigo-500/15" id="tax-app-root">
+    <div 
+      className="min-h-screen bg-slate-50 text-slate-900 font-sans leading-normal selection:bg-indigo-500/30" 
+      id="tax-app-root"
+    >
       
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6 space-y-6">
         
@@ -799,17 +836,24 @@ export default function App() {
                     <span>Σ</span>
                   )}
                   {/* Hover file upload and remove state */}
-                  <div className="absolute inset-0 bg-slate-900/70 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-[10px] font-bold text-white text-center leading-tight">
+                  <div className="absolute inset-0 bg-slate-900/70 z-20 opacity-0 hover:opacity-100 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center text-[10px] font-bold text-white text-center leading-tight pointer-events-none">
                     <span>Zmień</span>
                     {state.settings.customLogoBase64 && (
-                      <span onClick={handleLogoRemove} className="text-[9px] text-rose-300 font-extrabold mt-1 hover:text-rose-400">Usuń ×</span>
+                      <button 
+                        type="button"
+                        onClick={handleLogoRemove} 
+                        className="text-[9px] text-rose-300 font-extrabold mt-1 hover:text-rose-400 px-2 py-1 cursor-pointer bg-slate-900/50 rounded-full z-30 pointer-events-auto"
+                      >
+                        Usuń ×
+                      </button>
                     )}
                   </div>
                   <input
                     type="file"
                     accept="image/*"
                     onChange={handleLogoUpload}
-                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full"
+                    className="absolute inset-0 opacity-0 cursor-pointer w-full h-full z-10"
+                    title="Kliknij, aby zmienić logo"
                   />
                 </div>
                 <div>
@@ -895,7 +939,7 @@ export default function App() {
                     })}
                     className="px-2 py-0.5 text-[10.5px] font-bold text-indigo-700 hover:text-indigo-600 bg-white border border-slate-200 hover:border-indigo-300 rounded-lg transition-all cursor-pointer focus:outline-none shadow-xs font-display text-center"
                   >
-                    {[2024, 2025, 2026, 2027].map((yr) => (
+                    {[2023, 2024, 2025, 2026, 2027].map((yr) => (
                       <option key={yr} value={yr}>
                         {yr} ROK
                       </option>

@@ -447,8 +447,8 @@ export default function StorageControls({
         nazwaSpolki: parsed.settings?.nazwaSpolki || state.settings.nazwaSpolki || 'Kopia Spółki',
         nip: parsed.settings?.nip || state.settings.nip || '',
         stawkaCIT: parsed.settings?.stawkaCIT || state.settings.stawkaCIT || 9,
-        rokPodatkowy: parsed.settings?.rokPodatkowy || state.settings.rokPodatkowy || 2026,
-        miesiacPodatkowy: parsed.settings?.miesiacPodatkowy || state.settings.miesiacPodatkowy || 5
+        rokPodatkowy: parsed.settings?.rokPodatkowy || state.settings.rokPodatkowy || new Date().getFullYear(),
+        miesiacPodatkowy: parsed.settings?.miesiacPodatkowy || state.settings.miesiacPodatkowy || (new Date().getMonth() + 1)
       };
 
       if (clearBeforeImport) {

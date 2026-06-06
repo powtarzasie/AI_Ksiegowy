@@ -92,7 +92,29 @@ export default function TransactionsManager({
 
   // Formatting utilities
   const formatPLN = (num: number) => {
-    return new Intl.NumberFormat('pl-PL', { style: 'currency', currency: 'PLN' }).format(num);
+    const isNegative = num < 0;
+    const absVal = Math.abs(num);
+    const fixed = absVal.toFixed(2);
+    
+    const [integerPart, decimalPart] = fixed.split('.');
+    
+    // Group thousands manually
+    const length = integerPart.length;
+    let grouped = '';
+    for (let i = 0; i < length; i++) {
+      const revIndex = length - 1 - i;
+      grouped = integerPart[revIndex] + grouped;
+      if (i % 3 === 2 && revIndex > 0) {
+        grouped = ' ' + grouped;
+      }
+    }
+    
+    let resultStr = `${grouped},${decimalPart}`;
+    if (isNegative) {
+      resultStr = '-' + resultStr;
+    }
+    
+    return `${resultStr} zł`;
   };
 
   // 1. ADD SALES HANDLER

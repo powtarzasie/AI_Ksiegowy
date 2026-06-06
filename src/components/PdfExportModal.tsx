@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import html2canvas from 'html2canvas';
 import { jsPDF } from 'jspdf';
 import { AppState, MonthlySimulationResult } from '../types';
-import { calculateMonthlyTaxes, getMonthName } from '../utils/taxCalc';
+import { calculateMonthlyTaxes, getMonthName, calculatePurchaseKUP } from '../utils/taxCalc';
 import {
   FileText,
   Download,
@@ -241,12 +241,13 @@ interface PdfExportModalProps {
 export default function PdfExportModal({ state, activeTab, onClose }: PdfExportModalProps) {
   const { settings } = state;
   const [isGenerating, setIsGenerating] = useState(false);
-  const [exportType, setExportType] = useState<'viewport' | 'executive'>('executive');
+  const [exportType] = useState<'viewport' | 'executive'>('executive');
   const [reportTitle, setReportTitle] = useState(() => {
     const monthStr = getMonthName(settings.miesiacPodatkowy);
     return `Raport_Podatkowy_${settings.nazwaSpolki.replace(/\s+/g, '_') || 'Spolka'}_${monthStr}_${settings.rokPodatkowy}`;
   });
-  const [includeTransactions, setIncludeTransactions] = useState(true);
+  const [includeAllCosts, setIncludeAllCosts] = useState(true);
+  const [includeAllRevenues, setIncludeAllRevenues] = useState(true);
   const [includeYtd, setIncludeYtd] = useState(true);
   const [isDone, setIsDone] = useState(false);
   const [errorStatus, setErrorStatus] = useState<string | null>(null);
@@ -448,7 +449,7 @@ export default function PdfExportModal({ state, activeTab, onClose }: PdfExportM
         wrapper.style.position = 'fixed';
         wrapper.style.left = '0px';
         wrapper.style.top = '0px';
-        wrapper.style.width = '800px';
+        wrapper.style.width = '1000px';
         wrapper.style.zIndex = '-99999';
         wrapper.style.visibility = 'visible';
         wrapper.style.background = '#ffffff';
@@ -467,7 +468,7 @@ export default function PdfExportModal({ state, activeTab, onClose }: PdfExportM
             scrollX: 0,
             scrollY: 0,
             backgroundColor: '#ffffff',
-            width: 800
+            width: 1000
           });
 
           const imgData = canvas.toDataURL('image/jpeg', 0.95);
@@ -567,44 +568,19 @@ export default function PdfExportModal({ state, activeTab, onClose }: PdfExportM
               </button>
             </div>
 
-            {/* Selector */}
-            <div className="space-y-2">
-              <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider font-mono">
-                Typ eksportowanego dokumentu
-              </label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => { setExportType('executive'); setIsDone(false); }}
-                  className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
-                    exportType === 'executive'
-                      ? 'border-indigo-600 bg-indigo-50/70 text-indigo-900 shadow-xs'
-                      : 'border-slate-200 hover:border-slate-300 text-slate-600'
-                  }`}
-                >
-                  <FileCheck className="w-5 h-5 mx-auto mb-1 text-indigo-600" />
-                  <span className="text-xs font-bold block leading-tight">Biznesowy Raport PDF</span>
-                  <span className="text-[9px] text-slate-400">Rekomendowany do wydruków</span>
-                </button>
-
-                <button
-                  type="button"
-                  onClick={() => { setExportType('viewport'); setIsDone(false); }}
-                  className={`p-3 rounded-xl border text-center transition-all cursor-pointer ${
-                    exportType === 'viewport'
-                      ? 'border-indigo-600 bg-indigo-50/70 text-indigo-900 shadow-xs'
-                      : 'border-slate-200 hover:border-slate-300 text-slate-600'
-                  }`}
-                >
-                  <Layers className="w-5 h-5 mx-auto mb-1 text-slate-500" />
-                  <span className="text-xs font-bold block leading-tight">Zrzut pulpitu interaktywnego</span>
-                  <span className="text-[9px] text-slate-400">Dokładny widok z wykresami</span>
-                </button>
+            {/* Informacja o formacie */}
+            <div className="bg-indigo-50/70 border border-indigo-150 p-4 rounded-2xl flex items-start gap-3">
+              <FileCheck className="w-5 h-5 text-indigo-600 shrink-0 mt-0.5" />
+              <div>
+                <h4 className="text-xs font-bold text-indigo-950">Główny format: Biznesowy raport PDF</h4>
+                <p className="text-[11px] text-slate-600 mt-0.5 leading-relaxed">
+                  Profesjonalny, gęsto ustrukturyzowany dokument rozliczeniowy firmy, zoptymalizowany pod kątem proporcji wydruku A4.
+                </p>
               </div>
             </div>
 
             {/* Inputs & switches */}
-            <div className="space-y-4 pt-2">
+            <div className="space-y-4 pt-1">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-black uppercase text-slate-400 tracking-wider font-mono">
                   Nazwa generowanego pliku
@@ -618,33 +594,41 @@ export default function PdfExportModal({ state, activeTab, onClose }: PdfExportM
                 />
               </div>
 
-              {exportType === 'executive' && (
-                <div className="space-y-2 bg-slate-100 border border-slate-200 p-3.5 rounded-xl">
-                  <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest block mb-2 font-mono">
-                    Konfiguracja zawartości raportu
-                  </span>
-                  
-                  <label className="flex items-center gap-2.5 cursor-pointer text-xs select-none">
-                    <input
-                      type="checkbox"
-                      checked={includeYtd}
-                      onChange={(e) => setIncludeYtd(e.target.checked)}
-                      className="accent-indigo-600 h-4 w-4 rounded-xs border-slate-300 cursor-pointer"
-                    />
-                    <span className="font-semibold text-slate-700">Wytocz zestawienie roczne (YTD)</span>
-                  </label>
+              <div className="space-y-3 bg-slate-100 border border-slate-200 p-3.5 rounded-xl">
+                <span className="text-[9px] font-black uppercase text-slate-500 tracking-widest block mb-1 font-mono">
+                  Konfiguracja zawartości raportu
+                </span>
+                
+                <label className="flex items-center gap-2.5 cursor-pointer text-xs select-none">
+                  <input
+                    type="checkbox"
+                    checked={includeYtd}
+                    onChange={(e) => setIncludeYtd(e.target.checked)}
+                    className="accent-indigo-600 h-4 w-4 rounded-xs border-slate-300 cursor-pointer"
+                  />
+                  <span className="font-semibold text-slate-700">Wytocz zestawienie roczne (YTD)</span>
+                </label>
 
-                  <label className="flex items-center gap-2.5 cursor-pointer text-xs select-none mt-2 block">
-                    <input
-                      type="checkbox"
-                      checked={includeTransactions}
-                      onChange={(e) => setIncludeTransactions(e.target.checked)}
-                      className="accent-indigo-600 h-4 w-4 rounded-xs border-slate-300 cursor-pointer"
-                    />
-                    <span className="font-semibold text-slate-700">Wykaż kluczowe faktury i koszty</span>
-                  </label>
-                </div>
-              )}
+                <label className="flex items-center gap-2.5 cursor-pointer text-xs select-none mt-1 block">
+                  <input
+                    type="checkbox"
+                    checked={includeAllRevenues}
+                    onChange={(e) => setIncludeAllRevenues(e.target.checked)}
+                    className="accent-indigo-600 h-4 w-4 rounded-xs border-slate-300 cursor-pointer"
+                  />
+                  <span className="font-semibold text-slate-700">Wszystkie przychody z danego miesiąca - analityka</span>
+                </label>
+
+                <label className="flex items-center gap-2.5 cursor-pointer text-xs select-none mt-1 block">
+                  <input
+                    type="checkbox"
+                    checked={includeAllCosts}
+                    onChange={(e) => setIncludeAllCosts(e.target.checked)}
+                    className="accent-indigo-600 h-4 w-4 rounded-xs border-slate-300 cursor-pointer"
+                  />
+                  <span className="font-semibold text-slate-700">Wszystkie koszty z danego miesiąca - analityka</span>
+                </label>
+              </div>
             </div>
           </div>
 
@@ -759,9 +743,9 @@ export default function PdfExportModal({ state, activeTab, onClose }: PdfExportM
         </div>
       </div>
 
-      {/* RENDER-OUT OF HIGH-FIDELITY BUSINESS REPORT EMBED (rendered off-screen, width 800px) */}
-      <div style={{ position: 'absolute', left: '-10000px', top: '0px', width: '800px' }} data-html2canvas-ignore="false">
-        <div id="pdf-report-template" className="bg-white text-slate-900 p-10 font-sans space-y-8 leading-normal">
+      {/* RENDER-OUT OF HIGH-FIDELITY BUSINESS REPORT EMBED (rendered off-screen, width 1000px) */}
+      <div style={{ position: 'absolute', left: '-10000px', top: '0px', width: '1000px' }} data-html2canvas-ignore="false">
+        <div id="pdf-report-template" className="bg-white text-slate-900 p-10 font-sans space-y-8 leading-normal w-[1000px]">
           
           {/* Executive Company Tag & Seal */}
           <div className="flex justify-between items-start border-b-2 border-indigo-700 pb-6">
@@ -920,67 +904,112 @@ export default function PdfExportModal({ state, activeTab, onClose }: PdfExportM
             </div>
           )}
 
-          {/* Section: Transactions */}
-          {includeTransactions && (
-            <div className="space-y-4">
-              <h3 className="text-xs font-black text-slate-800 uppercase tracking-widest border-b border-slate-200 pb-1.5 font-display">
-                3. Wykaz Kluczowych Transakcji ({activeMonthName})
+          {/* Section: Revenue Analytics */}
+          {includeAllRevenues && (
+            <div className="space-y-3">
+              <h3 className="text-xs font-black text-indigo-700 uppercase tracking-widest border-b border-slate-200 pb-1.5 font-display">
+                3. Wszystkie przychody z danego miesiąca ({activeMonthName}) - analityka
               </h3>
-              
-              <div className="grid grid-cols-2 gap-5">
-                {/* Sales */}
-                <div className="space-y-2">
-                  <span className="text-[10px] font-black text-indigo-700 block uppercase tracking-wide">
-                    NAJWIĘKSZE PRZYCHODY (SPRZEDAŻ)
-                  </span>
-                  {currentMonthSales.length === 0 ? (
-                    <div className="text-[11px] text-slate-400 italic py-2">Brak transakcji sprzedaży dla tego miesiąca.</div>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {currentMonthSales.slice(0, 5).map((s, idx) => (
-                        <div key={idx} className="border border-slate-150 p-2 rounded-lg space-y-0.5 text-[11px] hover:bg-slate-50 font-mono">
-                          <div className="flex justify-between font-bold text-slate-800">
-                            <span className="truncate max-w-[150px]">{s.kontrahent}</span>
-                            <span>{formatPLN(s.netto)}</span>
-                          </div>
-                          <div className="flex justify-between text-slate-400 text-[10px]">
-                            <span>FV: {s.numerFaktury}</span>
-                            <span>VAT: {s.vat} zł ({s.stawkaVat}%)</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              {currentMonthSales.length === 0 ? (
+                <div className="text-xs text-slate-400 italic py-2 mt-1">Brak zapisanych przychodów w tym miesiącu.</div>
+              ) : (
+                <table className="w-full text-left text-xs border-collapse font-sans mt-2 table-fixed">
+                  <thead>
+                    <tr className="border-b border-slate-350 text-slate-500 font-mono text-[9px] uppercase">
+                      <th className="py-2.5 w-[10%]">Data</th>
+                      <th className="py-2.5 w-[18%]">Dowód / Faktura</th>
+                      <th className="py-2.5 w-[30%]">Odbiorca / Kontrahent</th>
+                      <th className="py-2.5 w-[10%] text-center">Stawka VAT</th>
+                      <th className="py-2.5 text-right w-[11%]">Przychód Netto</th>
+                      <th className="py-2.5 text-right w-[10%]">Kwota VAT</th>
+                      <th className="py-2.5 text-right w-[11%]">Przychód Brutto</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-150 font-mono">
+                    {currentMonthSales.map((s, index) => (
+                      <tr key={index} className="hover:bg-slate-50/50">
+                        <td className="py-2.5 text-slate-600">{s.data}</td>
+                        <td className="py-2.5 text-slate-700 font-bold">
+                          <div className="truncate pr-2" title={s.numerFaktury}>{s.numerFaktury}</div>
+                        </td>
+                        <td className="py-2.5 font-sans text-slate-800">
+                          <div className="truncate pr-2" title={s.kontrahent}>{s.kontrahent}</div>
+                        </td>
+                        <td className="py-2.5 text-center text-slate-600">VAT {s.stawkaVat}%</td>
+                        <td className="py-2.5 text-right text-slate-800 font-semibold">{formatPLN(s.netto)}</td>
+                        <td className="py-2.5 text-right text-slate-500">{formatPLN(s.vat)}</td>
+                        <td className="py-2.5 text-right text-slate-900 font-bold">{formatPLN(s.brutto)}</td>
+                      </tr>
+                    ))}
+                    <tr className="bg-slate-100 font-black font-mono">
+                      <td colSpan={4} className="py-3 font-sans font-bold text-slate-850 pl-2">SUMA PRZYCHODÓW M-C:</td>
+                      <td className="py-3 text-right font-black text-slate-900">{formatPLN(currentMonthSales.reduce((sum, s) => sum + s.netto, 0))}</td>
+                      <td className="py-3 text-right text-slate-600">{formatPLN(currentMonthSales.reduce((sum, s) => sum + s.vat, 0))}</td>
+                      <td className="py-3 text-right font-black text-indigo-700">{formatPLN(currentMonthSales.reduce((sum, s) => sum + s.brutto, 0))}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
 
-                {/* Purchases */}
-                <div className="space-y-2">
-                  <span className="text-[10px] font-black text-rose-700 block uppercase tracking-wide">
-                    NAJWIĘKSZE KOSZTY (ZAKUPY)
-                  </span>
-                  {currentMonthPurchases.length === 0 ? (
-                    <div className="text-[11px] text-slate-400 italic py-2">Brak transakcji kosztowych dla tego miesiąca.</div>
-                  ) : (
-                    <div className="space-y-1.5">
-                      {currentMonthPurchases.slice(0, 5).map((p, idx) => (
-                        <div key={idx} className="border border-slate-150 p-2 rounded-lg space-y-0.5 text-[11px] hover:bg-slate-50 font-mono">
-                          <div className="flex justify-between font-bold text-slate-800">
-                            <span className="truncate max-w-[150px]">{p.dostawca}</span>
-                            <span>{formatPLN(p.netto)}</span>
-                          </div>
-                          <div className="flex justify-between text-slate-400 text-[10px]">
-                            <span>
-                              FV: {p.numerFaktury} • {p.kategoria}
-                              {p.czyImportUslug && <span className="ml-1 text-blue-600 bg-blue-50 px-1 py-0.5 rounded font-black">[IMPORT]</span>}
-                            </span>
-                            <span>KUP: {p.kosztCIT ? 'TAK' : 'NIE'} • VAT: {p.odliczenieVat}%</span>
-                          </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
+          {/* Section: Cost Analytics */}
+          {includeAllCosts && (
+            <div className="space-y-3">
+              <h3 className="text-xs font-black text-rose-700 uppercase tracking-widest border-b border-slate-200 pb-1.5 font-display">
+                {includeAllRevenues ? '4' : '3'}. Wszystkie koszty z danego miesiąca ({activeMonthName}) - analityka
+              </h3>
+              {currentMonthPurchases.length === 0 ? (
+                <div className="text-xs text-slate-400 italic py-2 mt-1">Brak zapisanych kosztów w tym miesiącu.</div>
+              ) : (
+                <table className="w-full text-left text-xs border-collapse font-sans mt-2 table-fixed">
+                  <thead>
+                    <tr className="border-b border-slate-350 text-slate-500 font-mono text-[9px] uppercase">
+                      <th className="py-2.5 w-[10%]">Data</th>
+                      <th className="py-2.5 w-[16%]">Dowód / Faktura</th>
+                      <th className="py-2.5 w-[24%]">Dostawca</th>
+                      <th className="py-2.5 w-[14%]">Rodzaj kosztu</th>
+                      <th className="py-2.5 w-[10%] text-center">CIT / VAT</th>
+                      <th className="py-2.5 text-right w-[10%]">Koszt Netto</th>
+                      <th className="py-2.5 text-right w-[8%]">VAT odliczalny</th>
+                      <th className="py-2.5 text-right w-[8%]">Koszt Brutto</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-150 font-mono">
+                    {currentMonthPurchases.map((p, index) => {
+                      const deductibleVat = p.vat * (p.odliczenieVat / 100);
+                      return (
+                        <tr key={index} className="hover:bg-slate-50/50">
+                          <td className="py-2.5 text-slate-600">{p.data}</td>
+                          <td className="py-2.5 text-slate-700 font-bold">
+                            <div className="truncate pr-2" title={p.numerFaktury}>{p.numerFaktury}</div>
+                          </td>
+                          <td className="py-2.5 font-sans text-slate-800">
+                            <div className="truncate pr-2" title={p.dostawca}>{p.dostawca}</div>
+                          </td>
+                          <td className="py-2.5 font-sans text-slate-600">
+                            <div className="truncate pr-2" title={p.kategoria}>{p.kategoria}</div>
+                          </td>
+                          <td className="py-2.5 text-center text-[10px]">
+                            <span className="font-bold text-slate-700">{p.kosztCIT ? 'KUP' : 'NKUP'}</span>
+                            <span className="text-slate-400 mx-1">/</span>
+                            <span className="text-slate-600">{p.odliczenieVat}%</span>
+                          </td>
+                          <td className="py-2.5 text-right text-slate-800 font-semibold">{formatPLN(p.netto)}</td>
+                          <td className="py-2.5 text-right text-slate-500">{formatPLN(deductibleVat)}</td>
+                          <td className="py-2.5 text-right text-slate-900 font-bold">{formatPLN(p.brutto)}</td>
+                        </tr>
+                      );
+                    })}
+                    <tr className="bg-slate-100 font-black font-mono">
+                      <td colSpan={5} className="py-3 font-sans font-bold text-slate-850 pl-2">SUMA KOSZTÓW M-C:</td>
+                      <td className="py-3 text-right font-black text-slate-900">{formatPLN(currentMonthPurchases.reduce((sum, p) => sum + p.netto, 0))}</td>
+                      <td className="py-3 text-right text-slate-600">{formatPLN(currentMonthPurchases.reduce((sum, p) => sum + p.vat * (p.odliczenieVat / 100), 0))}</td>
+                      <td className="py-3 text-right font-black text-rose-700">{formatPLN(currentMonthPurchases.reduce((sum, p) => sum + p.brutto, 0))}</td>
+                    </tr>
+                  </tbody>
+                </table>
+              )}
             </div>
           )}
 

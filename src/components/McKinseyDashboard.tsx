@@ -116,6 +116,18 @@ const KPI_INFO_DETAILS: Record<string, { title: string; desc: string; formula?: 
   }
 };
 
+// Helper function to format planned months for current or next year
+const getPlannedMonthLabel = (m: number, baseYear: number = 2026) => {
+  if (m <= 12) {
+    const monthName = new Date(baseYear, m - 1, 1).toLocaleString('pl-PL', { month: 'short' });
+    return `${m} (${monthName}) ${baseYear} r.`;
+  } else {
+    const nextMonth = m - 12;
+    const monthName = new Date(baseYear + 1, nextMonth - 1, 1).toLocaleString('pl-PL', { month: 'short' });
+    return `${nextMonth} (${monthName}) ${baseYear + 1} r. (kolejny rok)`;
+  }
+};
+
 interface McKinseyDashboardProps {
   state: AppState;
 }
@@ -616,22 +628,45 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
       {/* 2. World-Class Executive Financial KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
         {/* KPI 1: Skorygowana EBITDA & Margin */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs relative overflow-hidden group hover:border-indigo-200 transition-colors">
-          <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
-            <TrendingUp className="w-24 h-24 text-indigo-900" />
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs relative group hover:border-indigo-200 transition-all flex flex-col justify-between min-h-[145px]">
+          <div className="absolute top-1 right-1 opacity-[0.03] group-hover:opacity-10 transition-opacity pointer-events-none">
+            <TrendingUp className="w-16 h-16 text-indigo-900" />
           </div>
-          <button
-            onClick={() => setInfoMetricKey('ebitda')}
-            className="absolute top-4 right-4 z-20 w-5 h-5 rounded-full border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-800 flex items-center justify-center text-[11px] font-bold shadow-xs transition-all cursor-pointer font-sans"
-            title="Szczegóły EBITDA"
-          >
-            i
-          </button>
-          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block font-sans">EBITDA (Zysk Operacyjny)</span>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(ebitdaEstimated)}</span>
+          
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-2">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-sans truncate mr-1">
+              EBITDA (Zysk Operacyjny)
+            </span>
+            <div className="relative group/tooltip inline-flex items-center shrink-0">
+              <span className="w-5 h-5 rounded-full border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-850 flex items-center justify-center text-[11px] font-bold shadow-xs transition-all cursor-help select-none font-sans">
+                i
+              </span>
+              <div className="invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 absolute bottom-full right-0 mb-2 w-72 bg-slate-900 border border-slate-800 text-slate-100 text-left p-4 rounded-xl shadow-2xl z-[100] transform scale-95 origin-bottom-right group-hover/tooltip:scale-100">
+                <div className="font-extrabold text-indigo-400 mb-1.5 border-b border-indigo-500/20 pb-1 flex items-center gap-1.5 text-[11px] uppercase tracking-wide leading-tight font-display">
+                  <TrendingUp className="w-3.5 h-3.5" />
+                  EBITDA (Zysk Operacyjny)
+                </div>
+                <div className="text-[11px] text-slate-300 leading-relaxed space-y-2 font-sans font-medium normal-case tracking-normal">
+                  <p>{KPI_INFO_DETAILS.ebitda.desc}</p>
+                  <p className="text-[10px] font-mono text-slate-400 bg-slate-950 p-1.5 rounded-md border border-slate-800/50 leading-normal">
+                    {KPI_INFO_DETAILS.ebitda.formula}
+                  </p>
+                  <p className="text-[11px] text-indigo-300 font-medium leading-normal">
+                    {KPI_INFO_DETAILS.ebitda.consequence}
+                  </p>
+                </div>
+                <div className="absolute top-full right-2 border-[6px] border-transparent border-t-slate-900"></div>
+              </div>
+            </div>
           </div>
-          <div className="mt-2.5 text-xs font-medium font-sans flex items-center justify-between gap-1.5">
+
+          <div className="flex-1 flex flex-col justify-center">
+            <div className="flex items-baseline justify-end gap-2">
+              <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(ebitdaEstimated)}</span>
+            </div>
+          </div>
+
+          <div className="mt-2.5 text-xs font-medium font-sans flex items-center justify-between gap-1.5 border-t border-slate-105 border-slate-100 pt-2">
             <span className={`px-2 py-0.5 rounded-full uppercase font-bold text-[9px] ${ebitdaMargin > 20 ? 'bg-emerald-100 text-emerald-800' : 'bg-amber-100 text-amber-800'}`}>
               Marża: {ebitdaMargin.toFixed(1)}%
             </span>
@@ -640,51 +675,97 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
         </div>
 
         {/* KPI 2: ARR (Annualized Run Rate) */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs relative overflow-hidden group hover:border-indigo-200 transition-colors">
-          <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
-            <Layers className="w-24 h-24 text-emerald-900" />
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs relative group hover:border-indigo-200 transition-all flex flex-col justify-between min-h-[145px]">
+          <div className="absolute top-1 right-1 opacity-[0.03] group-hover:opacity-10 transition-opacity pointer-events-none">
+            <Layers className="w-16 h-16 text-emerald-900" />
           </div>
-          <button
-            onClick={() => setInfoMetricKey('arr')}
-            className="absolute top-4 right-4 z-20 w-5 h-5 rounded-full border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-800 flex items-center justify-center text-[11px] font-bold shadow-xs transition-all cursor-pointer font-sans"
-            title="Szczegóły ARR"
-          >
-            i
-          </button>
-          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block font-sans">Prognozowany ARR</span>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(annualizedRevenue)}</span>
+
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-2">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-sans truncate mr-1">
+              Prognozowany ARR
+            </span>
+            <div className="relative group/tooltip inline-flex items-center shrink-0">
+              <span className="w-5 h-5 rounded-full border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 hover:text-emerald-850 flex items-center justify-center text-[11px] font-bold shadow-xs transition-all cursor-help select-none font-sans">
+                i
+              </span>
+              <div className="invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 absolute bottom-full right-0 mb-2 w-72 bg-slate-900 border border-slate-800 text-slate-100 text-left p-4 rounded-xl shadow-2xl z-[100] transform scale-95 origin-bottom-right group-hover/tooltip:scale-100">
+                <div className="font-extrabold text-emerald-400 mb-1.5 border-b border-emerald-500/20 pb-1 flex items-center gap-1.5 text-[11px] uppercase tracking-wide leading-tight font-display">
+                  <Layers className="w-3.5 h-3.5" />
+                  Prognozowany ARR
+                </div>
+                <div className="text-[11px] text-slate-300 leading-relaxed space-y-2 font-sans font-medium normal-case tracking-normal">
+                  <p>{KPI_INFO_DETAILS.arr.desc}</p>
+                  <p className="text-[10px] font-mono text-slate-400 bg-slate-950 p-1.5 rounded-md border border-slate-800/50 leading-normal">
+                    {KPI_INFO_DETAILS.arr.formula}
+                  </p>
+                  <p className="text-[11px] text-emerald-300 font-medium leading-normal">
+                    {KPI_INFO_DETAILS.arr.consequence}
+                  </p>
+                </div>
+                <div className="absolute top-full right-2 border-[6px] border-transparent border-t-slate-900"></div>
+              </div>
+            </div>
           </div>
-          <div className="mt-2.5 text-[10px] font-bold uppercase tracking-wider font-sans text-slate-400 flex items-center gap-1.5 border-t border-slate-100 pt-2">
-            <Calendar className="w-3 h-3"/> {monthsActive} mc dynamiki r/r
+
+          <div className="flex-1 flex flex-col justify-center">
+            <div className="flex items-baseline justify-end gap-2">
+              <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(annualizedRevenue)}</span>
+            </div>
+          </div>
+
+          <div className="mt-2.5 text-[10px] font-bold uppercase tracking-wider font-sans text-slate-400 flex items-center justify-end gap-1.5 border-t border-slate-100 pt-2">
+            <Calendar className="w-3 h-3 text-slate-400 mr-1"/> {monthsActive} mc dynamiki r/r
           </div>
         </div>
 
         {/* KPI 3: Koncentracja Klienta (Risk) */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs relative overflow-hidden group hover:border-rose-200 transition-colors">
-          <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
-            <AlertCircle className="w-24 h-24 text-rose-900" />
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs relative group hover:border-rose-200 transition-all flex flex-col justify-between min-h-[145px]">
+          <div className="absolute top-1 right-1 opacity-[0.03] group-hover:opacity-10 transition-opacity pointer-events-none">
+            <AlertCircle className="w-16 h-16 text-rose-900" />
           </div>
-          <button
-            onClick={() => setInfoMetricKey('risk')}
-            className="absolute top-4 right-4 z-20 w-5 h-5 rounded-full border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-800 flex items-center justify-center text-[11px] font-bold shadow-xs transition-all cursor-pointer font-sans"
-            title="Szczegóły Koncentracji"
-          >
-            i
-          </button>
-          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block font-sans">Koncentracja Ryzyka</span>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className={`text-xl font-black font-mono tracking-tight ${isHighConcentrationRisk ? 'text-rose-600' : 'text-emerald-600'}`}>
-              {topClientShare.toFixed(1)}%
+
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-2">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-sans truncate mr-1">
+              Koncentracja Ryzyka
             </span>
-            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">portfela</span>
+            <div className="relative group/tooltip inline-flex items-center shrink-0">
+              <span className="w-5 h-5 rounded-full border border-rose-200 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-850 flex items-center justify-center text-[11px] font-bold shadow-xs transition-all cursor-help select-none font-sans">
+                i
+              </span>
+              <div className="invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 absolute bottom-full right-0 mb-2 w-72 bg-slate-900 border border-slate-800 text-slate-100 text-left p-4 rounded-xl shadow-2xl z-[100] transform scale-95 origin-bottom-right group-hover/tooltip:scale-100">
+                <div className="font-extrabold text-rose-400 mb-1.5 border-b border-rose-500/20 pb-1 flex items-center gap-1.5 text-[11px] uppercase tracking-wide leading-tight font-display">
+                  <AlertCircle className="w-3.5 h-3.5" />
+                  Koncentracja Ryzyka
+                </div>
+                <div className="text-[11px] text-slate-300 leading-relaxed space-y-2 font-sans font-medium normal-case tracking-normal">
+                  <p>{KPI_INFO_DETAILS.risk.desc}</p>
+                  <p className="text-[10px] font-mono text-slate-400 bg-slate-950 p-1.5 rounded-md border border-slate-800/50 leading-normal">
+                    {KPI_INFO_DETAILS.risk.formula}
+                  </p>
+                  <p className="text-[11px] text-rose-300 font-medium leading-normal">
+                    {KPI_INFO_DETAILS.risk.consequence}
+                  </p>
+                </div>
+                <div className="absolute top-full right-2 border-[6px] border-transparent border-t-slate-900"></div>
+              </div>
+            </div>
           </div>
+
+          <div className="flex-1 flex flex-col justify-center">
+            <div className="flex items-baseline justify-end gap-2">
+              <span className={`text-xl font-black font-mono tracking-tight ${isHighConcentrationRisk ? 'text-rose-600' : 'text-emerald-600'}`}>
+                {topClientShare.toFixed(1)}%
+              </span>
+              <span className="text-[10px] font-bold text-slate-405 text-slate-450 uppercase tracking-wider">portfela</span>
+            </div>
+          </div>
+
           <div className="mt-2.5 text-xs font-medium font-sans flex items-center justify-between gap-1.5 border-t border-slate-100 pt-2">
             <span className="text-slate-400 text-[10px] truncate max-w-[120px] font-bold" title={revenueContractorsArray[0]?.name}>
               {revenueContractorsArray[0]?.name || 'Brak danych'}
             </span>
             {isHighConcentrationRisk && (
-              <span className="text-[9px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded-full font-bold uppercase">
+              <span className="text-[9px] bg-rose-100 text-rose-800 px-1.5 py-0.5 rounded-full font-bold uppercase transition-all">
                 Ryzyko
               </span>
             )}
@@ -692,66 +773,135 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
         </div>
 
         {/* KPI 4: Burn Rate */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs relative overflow-hidden group hover:border-indigo-200 transition-colors">
-          <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
-            <TrendingDown className="w-24 h-24 text-slate-900" />
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs relative group hover:border-indigo-200 transition-all flex flex-col justify-between min-h-[145px]">
+          <div className="absolute top-1 right-1 opacity-[0.03] group-hover:opacity-10 transition-opacity pointer-events-none">
+            <TrendingDown className="w-16 h-16 text-slate-900" />
           </div>
-          <button
-            onClick={() => setInfoMetricKey('burnrate')}
-            className="absolute top-4 right-4 z-20 w-5 h-5 rounded-full border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-800 flex items-center justify-center text-[11px] font-bold shadow-xs transition-all cursor-pointer font-sans"
-            title="Szczegóły Burn-rate"
-          >
-            i
-          </button>
-          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block font-sans">Średni Burn-Rate (OPEX)</span>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(avgMonthlyBurnRate)}</span>
+
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-2">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-sans truncate mr-1">
+              Średni Burn-Rate (OPEX)
+            </span>
+            <div className="relative group/tooltip inline-flex items-center shrink-0">
+              <span className="w-5 h-5 rounded-full border border-slate-300 bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-805 flex items-center justify-center text-[11px] font-bold shadow-xs transition-all cursor-help select-none font-sans">
+                i
+              </span>
+              <div className="invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 absolute bottom-full right-0 mb-2 w-72 bg-slate-900 border border-slate-800 text-slate-100 text-left p-4 rounded-xl shadow-2xl z-[100] transform scale-95 origin-bottom-right group-hover/tooltip:scale-100">
+                <div className="font-extrabold text-slate-300 mb-1.5 border-b border-slate-500/20 pb-1 flex items-center gap-1.5 text-[11px] uppercase tracking-wide leading-tight font-display">
+                  <TrendingDown className="w-3.5 h-3.5" />
+                  Średni Burn-Rate (OPEX)
+                </div>
+                <div className="text-[11px] text-slate-300 leading-relaxed space-y-2 font-sans font-medium normal-case tracking-normal">
+                  <p>{KPI_INFO_DETAILS.burnrate.desc}</p>
+                  <p className="text-[10px] font-mono text-slate-400 bg-slate-950 p-1.5 rounded-md border border-slate-800/50 leading-normal">
+                    {KPI_INFO_DETAILS.burnrate.formula}
+                  </p>
+                  <p className="text-[11px] text-slate-300 font-medium leading-normal">
+                    {KPI_INFO_DETAILS.burnrate.consequence}
+                  </p>
+                </div>
+                <div className="absolute top-full right-2 border-[6px] border-transparent border-t-slate-900"></div>
+              </div>
+            </div>
           </div>
-          <div className="mt-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider font-sans flex items-center gap-1 border-t border-slate-100 pt-2">
-             <Info className="w-3 h-3"/> Tempo ubywania gotówki
+
+          <div className="flex-1 flex flex-col justify-center">
+            <div className="flex items-baseline justify-end gap-2">
+              <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(avgMonthlyBurnRate)}</span>
+            </div>
+          </div>
+
+          <div className="mt-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider font-sans flex items-center justify-end gap-1 border-t border-slate-100 pt-2">
+             <Info className="w-3 h-3 text-slate-450 mr-1"/> Tempo ubywania gotówki
           </div>
         </div>
 
         {/* KPI 5: Personnel Costs */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs relative overflow-hidden group hover:border-sky-200 transition-colors">
-          <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
-            <Users className="w-24 h-24 text-sky-900" />
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs relative group hover:border-sky-200 transition-all flex flex-col justify-between min-h-[145px]">
+          <div className="absolute top-1 right-1 opacity-[0.03] group-hover:opacity-10 transition-opacity pointer-events-none">
+            <Users className="w-16 h-16 text-sky-900" />
           </div>
-          <button
-            onClick={() => setInfoMetricKey('personnel')}
-            className="absolute top-4 right-4 z-20 w-5 h-5 rounded-full border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-800 flex items-center justify-center text-[11px] font-bold shadow-xs transition-all cursor-pointer font-sans"
-            title="Szczegóły Kosztów Osobowych"
-          >
-            i
-          </button>
-          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block font-sans">Koszty Osobowe (YTD)</span>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(totalPersonnelCosts)}</span>
+
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-2">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-sans truncate mr-1">
+              Koszty Osobowe (YTD)
+            </span>
+            <div className="relative group/tooltip inline-flex items-center shrink-0">
+              <span className="w-5 h-5 rounded-full border border-sky-200 bg-sky-50 hover:bg-sky-100 text-sky-600 hover:text-sky-850 flex items-center justify-center text-[11px] font-bold shadow-xs transition-all cursor-help select-none font-sans">
+                i
+              </span>
+              <div className="invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 absolute bottom-full right-0 mb-2 w-72 bg-slate-900 border border-slate-800 text-slate-100 text-left p-4 rounded-xl shadow-2xl z-[100] transform scale-95 origin-bottom-right group-hover/tooltip:scale-100">
+                <div className="font-extrabold text-sky-400 mb-1.5 border-b border-sky-500/20 pb-1 flex items-center gap-1.5 text-[11px] uppercase tracking-wide leading-tight font-display">
+                  <Users className="w-3.5 h-3.5" />
+                  Koszty Osobowe (YTD)
+                </div>
+                <div className="text-[11px] text-slate-300 leading-relaxed space-y-2 font-sans font-medium normal-case tracking-normal">
+                  <p>{KPI_INFO_DETAILS.personnel.desc}</p>
+                  <p className="text-[10px] font-mono text-slate-400 bg-slate-950 p-1.5 rounded-md border border-slate-800/50 leading-normal">
+                    {KPI_INFO_DETAILS.personnel.formula}
+                  </p>
+                  <p className="text-[11px] text-sky-305 text-sky-300 font-medium leading-normal">
+                    {KPI_INFO_DETAILS.personnel.consequence}
+                  </p>
+                </div>
+                <div className="absolute top-full right-2 border-[6px] border-transparent border-t-slate-900"></div>
+              </div>
+            </div>
           </div>
+
+          <div className="flex-1 flex flex-col justify-center">
+            <div className="flex items-baseline justify-end gap-2">
+              <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(totalPersonnelCosts)}</span>
+            </div>
+          </div>
+
           <div className="mt-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider font-sans flex items-center justify-between gap-1 border-t border-slate-100 pt-2">
-             <span><Info className="w-3 h-3 inline mr-1"/> Zespół & Kontrakty</span>
+             <span className="flex items-center gap-1"><Info className="w-3 h-3 text-slate-400"/> Zespół & Kontrakty</span>
              {actualCostYTD > 0 && <span>{((totalPersonnelCosts / actualCostYTD) * 100).toFixed(1)}% OPEX</span>}
           </div>
         </div>
 
         {/* KPI 6: License Costs */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs relative overflow-hidden group hover:border-purple-200 transition-colors">
-          <div className="absolute -top-4 -right-4 p-4 opacity-[0.03] group-hover:opacity-10 transition-opacity">
-            <AppWindow className="w-24 h-24 text-purple-900" />
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs relative group hover:border-purple-200 transition-all flex flex-col justify-between min-h-[145px]">
+          <div className="absolute top-1 right-1 opacity-[0.03] group-hover:opacity-10 transition-opacity pointer-events-none">
+            <AppWindow className="w-16 h-16 text-purple-900" />
           </div>
-          <button
-            onClick={() => setInfoMetricKey('software')}
-            className="absolute top-4 right-4 z-20 w-5 h-5 rounded-full border border-indigo-200 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-800 flex items-center justify-center text-[11px] font-bold shadow-xs transition-all cursor-pointer font-sans"
-            title="Szczegóły Kosztów Oprogramowania"
-          >
-            i
-          </button>
-          <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest block font-sans">Koszty Licencji & SaaS (YTD)</span>
-          <div className="mt-1 flex items-baseline gap-2">
-            <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(totalLicenseCosts)}</span>
+
+          <div className="flex items-center justify-between gap-2 border-b border-slate-100 pb-2 mb-2">
+            <span className="text-[10px] font-black text-slate-500 uppercase tracking-widest font-sans truncate mr-1">
+              Koszty Licencji & SaaS (YTD)
+            </span>
+            <div className="relative group/tooltip inline-flex items-center shrink-0">
+              <span className="w-5 h-5 rounded-full border border-purple-200 bg-purple-50 hover:bg-purple-100 text-purple-600 hover:text-purple-850 flex items-center justify-center text-[11px] font-bold shadow-xs transition-all cursor-help select-none font-sans">
+                i
+              </span>
+              <div className="invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 absolute bottom-full right-0 mb-2 w-72 bg-slate-900 border border-slate-800 text-slate-100 text-left p-4 rounded-xl shadow-2xl z-[100] transform scale-95 origin-bottom-right group-hover/tooltip:scale-100">
+                <div className="font-extrabold text-purple-400 mb-1.5 border-b border-purple-500/20 pb-1 flex items-center gap-1.5 text-[11px] uppercase tracking-wide leading-tight font-display">
+                  <AppWindow className="w-3.5 h-3.5" />
+                  Koszty Licencji & SaaS (YTD)
+                </div>
+                <div className="text-[11px] text-slate-300 leading-relaxed space-y-2 font-sans font-medium normal-case tracking-normal">
+                  <p>{KPI_INFO_DETAILS.software.desc}</p>
+                  <p className="text-[10px] font-mono text-slate-400 bg-slate-950 p-1.5 rounded-md border border-slate-800/50 leading-normal">
+                    {KPI_INFO_DETAILS.software.formula}
+                  </p>
+                  <p className="text-[11px] text-purple-305 text-purple-305 text-purple-300 font-medium leading-normal">
+                    {KPI_INFO_DETAILS.software.consequence}
+                  </p>
+                </div>
+                <div className="absolute top-full right-2 border-[6px] border-transparent border-t-slate-900"></div>
+              </div>
+            </div>
           </div>
+
+          <div className="flex-1 flex flex-col justify-center">
+            <div className="flex items-baseline justify-end gap-2">
+              <span className="text-xl font-black text-slate-900 font-mono tracking-tight">{formatPLN(totalLicenseCosts)}</span>
+            </div>
+          </div>
+
           <div className="mt-2.5 text-[10px] font-bold text-slate-400 uppercase tracking-wider font-sans flex items-center justify-between gap-1 border-t border-slate-100 pt-2">
-             <span><Info className="w-3 h-3 inline mr-1"/> Oprogramowanie</span>
+             <span className="flex items-center gap-1"><Info className="w-3 h-3 text-slate-400"/> Oprogramowanie</span>
              {actualCostYTD > 0 && <span>{((totalLicenseCosts / actualCostYTD) * 100).toFixed(1)}% OPEX</span>}
           </div>
         </div>
@@ -1062,7 +1212,7 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
                                   {exp.kategoria}
                                 </span>
                                 <span className="text-[9px] text-slate-400 font-mono font-medium">
-                                  m-c: {exp.miesiacPlanowany}
+                                  m-c: {getPlannedMonthLabel(exp.miesiacPlanowany, settings.rokPodatkowy)}
                                 </span>
                                 {exp.prawdopodobienstwo === 'wysokie' && (
                                   <span className="text-[9px] bg-emerald-50 text-emerald-800 border border-emerald-100 font-bold px-1.5 py-0.5 rounded uppercase">
@@ -1183,9 +1333,9 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
                         onChange={(e) => setNewExpMonth(parseInt(e.target.value, 10))}
                         className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white outline-indigo-500 text-slate-700 font-bold cursor-pointer"
                       >
-                        {Array.from({ length: 12 }, (_, i) => (
+                        {Array.from({ length: 24 }, (_, i) => (
                           <option key={i + 1} value={i + 1}>
-                            {i + 1} ({new Date(2026, i, 1).toLocaleString('pl-PL', { month: 'short' })})
+                            {getPlannedMonthLabel(i + 1, settings.rokPodatkowy)}
                           </option>
                         ))}
                       </select>
@@ -1244,7 +1394,7 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
                                   {rev.kategoria}
                                 </span>
                                 <span className="text-[9px] text-slate-400 font-mono font-medium">
-                                  m-c: {rev.miesiacPlanowany}
+                                  m-c: {getPlannedMonthLabel(rev.miesiacPlanowany, settings.rokPodatkowy)}
                                 </span>
                                 {rev.prawdopodobienstwo === 'wysokie' && (
                                   <span className="text-[9px] bg-emerald-50 text-emerald-800 border border-emerald-100 font-bold px-1.5 py-0.5 rounded uppercase">
@@ -1356,9 +1506,9 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
                         onChange={(e) => setNewRevMonth(parseInt(e.target.value, 10))}
                         className="w-full text-xs border border-slate-200 rounded-lg px-2.5 py-1.5 bg-white outline-emerald-500 text-slate-755 text-slate-700 font-bold cursor-pointer"
                       >
-                        {Array.from({ length: 12 }, (_, i) => (
+                        {Array.from({ length: 24 }, (_, i) => (
                           <option key={i + 1} value={i + 1}>
-                            {i + 1} ({new Date(2026, i, 1).toLocaleString('pl-PL', { month: 'short' })})
+                            {getPlannedMonthLabel(i + 1, settings.rokPodatkowy)}
                           </option>
                         ))}
                       </select>
@@ -1402,35 +1552,74 @@ export default function McKinseyDashboard({ state }: McKinseyDashboardProps) {
 
             {/* Smart Grouped Metrics */}
             <div className="grid grid-cols-2 gap-3" id="revenue-behavior-groups">
-              <div className="bg-emerald-50/35 border border-emerald-100 rounded-xl p-3.5 relative overflow-hidden group hover:border-emerald-250 transition-colors">
-                <button
-                  type="button"
-                  onClick={() => setInfoMetricKey('retainers')}
-                  className="absolute top-2.5 right-2.5 z-20 w-4 h-4 rounded-full border border-emerald-200 bg-emerald-50 hover:bg-emerald-100/80 text-emerald-600 hover:text-emerald-800 flex items-center justify-center text-[10px] font-bold shadow-xs transition-all cursor-pointer font-sans"
-                  title="Szczegóły: Retainery"
-                >
-                  i
-                </button>
-                <span className="text-[9px] text-emerald-800 font-extrabold uppercase tracking-wider block font-sans pr-4">Retainery i stałe</span>
-                <span className="text-base font-black text-slate-900 font-mono block mt-1">
-                  {formatPLN(totalRecurrentRevenues)}
-                </span>
-                <span className="text-[9px] text-slate-400 font-medium font-sans italic block mt-0.5">Bieżąca cykliczność</span>
+              <div className="bg-emerald-50/35 border border-emerald-100 rounded-xl p-3 sm:p-3.5 relative group hover:border-emerald-250 transition-all flex flex-col justify-between min-h-[105px]">
+                <div className="flex items-center justify-between gap-1.5 pb-1 border-b border-emerald-150/40">
+                  <span className="text-[9px] text-emerald-800 font-extrabold uppercase tracking-wider font-sans truncate mr-2 block">
+                    Retainery i stałe
+                  </span>
+                  <div className="relative group/tooltip inline-flex items-center shrink-0">
+                    <span className="w-4.5 h-4.5 rounded-full border border-emerald-200 bg-emerald-50 hover:bg-emerald-100 text-emerald-600 hover:text-emerald-850 flex items-center justify-center text-[10px] font-bold shadow-xs transition-all cursor-help select-none font-sans">
+                      i
+                    </span>
+                    <div className="invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 absolute bottom-full right-0 mb-2 w-72 bg-slate-900 border border-slate-800 text-slate-100 text-left p-4 rounded-xl shadow-2xl z-[100] transform scale-95 origin-bottom-right group-hover/tooltip:scale-100">
+                      <div className="font-extrabold text-emerald-400 mb-1.5 border-b border-indigo-500/20 pb-1 flex items-center gap-1.5 text-[11px] uppercase tracking-wide leading-tight font-display">
+                        <Sparkles className="w-3.5 h-3.5 animate-pulse text-emerald-400" />
+                        {KPI_INFO_DETAILS.retainers.title}
+                      </div>
+                      <div className="text-[11px] text-slate-300 leading-relaxed space-y-2 font-sans font-medium normal-case tracking-normal">
+                        <p>{KPI_INFO_DETAILS.retainers.desc}</p>
+                        <p className="text-[10px] font-mono text-slate-400 bg-slate-950 p-1.5 rounded-md border border-slate-800/50 leading-normal">
+                          {KPI_INFO_DETAILS.retainers.formula}
+                        </p>
+                        <p className="text-[11px] text-emerald-300 font-medium leading-normal">
+                          {KPI_INFO_DETAILS.retainers.consequence}
+                        </p>
+                      </div>
+                      <div className="absolute top-full right-2 border-[6px] border-transparent border-t-slate-900"></div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex-1 flex flex-col justify-center">
+                  <span className="text-base font-black text-slate-900 font-mono block mt-1">
+                    {formatPLN(totalRecurrentRevenues)}
+                  </span>
+                </div>
+                <span className="text-[9px] text-slate-400 font-medium font-sans italic block mt-1 border-t border-emerald-100/30 pt-1">Bieżąca cykliczność</span>
               </div>
-              <div className="bg-indigo-50/20 border border-indigo-150 rounded-xl p-3.5 relative overflow-hidden group hover:border-indigo-250 transition-colors">
-                <button
-                  type="button"
-                  onClick={() => setInfoMetricKey('milestones')}
-                  className="absolute top-2.5 right-2.5 z-20 w-4 h-4 rounded-full border border-indigo-250 bg-indigo-50 hover:bg-indigo-100/80 text-indigo-600 hover:text-indigo-800 flex items-center justify-center text-[10px] font-bold shadow-xs transition-all cursor-pointer font-sans"
-                  title="Szczegóły: Kamienie Milowe"
-                >
-                  i
-                </button>
-                <span className="text-[9px] text-indigo-850 font-extrabold uppercase tracking-wider block font-sans pr-4">Kamienie Milowe</span>
-                <span className="text-base font-black text-indigo-600 font-mono block mt-1">
-                  {formatPLN(totalSpikyRevenues)}
-                </span>
-                <span className="text-[9px] text-slate-400 font-medium font-sans italic block mt-0.5">Etapy projektowe i PnB</span>
+
+              <div className="bg-indigo-50/20 border border-indigo-150 rounded-xl p-3 sm:p-3.5 relative group hover:border-indigo-250 transition-all flex flex-col justify-between min-h-[105px]">
+                <div className="flex items-center justify-between gap-1.5 pb-1 border-b border-indigo-150/40">
+                  <span className="text-[9px] text-indigo-850 font-extrabold uppercase tracking-wider font-sans truncate mr-2 block">
+                    Kamienie Milowe
+                  </span>
+                  <div className="relative group/tooltip inline-flex items-center shrink-0">
+                    <span className="w-4.5 h-4.5 rounded-full border border-indigo-250 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 hover:text-indigo-850 flex items-center justify-center text-[10px] font-bold shadow-xs transition-all cursor-help select-none font-sans">
+                      i
+                    </span>
+                    <div className="invisible group-hover/tooltip:visible opacity-0 group-hover/tooltip:opacity-100 transition-all duration-200 absolute bottom-full right-0 mb-2 w-72 bg-slate-900 border border-slate-800 text-slate-100 text-left p-4 rounded-xl shadow-2xl z-[100] transform scale-95 origin-bottom-right group-hover/tooltip:scale-100">
+                      <div className="font-extrabold text-indigo-400 mb-1.5 border-b border-indigo-500/20 pb-1 flex items-center gap-1.5 text-[11px] uppercase tracking-wide leading-tight font-display">
+                        <Layers className="w-3.5 h-3.5 text-indigo-400" />
+                        {KPI_INFO_DETAILS.milestones.title}
+                      </div>
+                      <div className="text-[11px] text-slate-300 leading-relaxed space-y-2 font-sans font-medium normal-case tracking-normal">
+                        <p>{KPI_INFO_DETAILS.milestones.desc}</p>
+                        <p className="text-[10px] font-mono text-slate-400 bg-slate-950 p-1.5 rounded-md border border-slate-800/50 leading-normal">
+                          {KPI_INFO_DETAILS.milestones.formula}
+                        </p>
+                        <p className="text-[11px] text-indigo-300 font-medium leading-normal">
+                          {KPI_INFO_DETAILS.milestones.consequence}
+                        </p>
+                      </div>
+                      <div className="absolute top-full right-2 border-[6px] border-transparent border-t-slate-900"></div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex-1 flex flex-col justify-center">
+                  <span className="text-base font-black text-indigo-600 font-mono block mt-1">
+                    {formatPLN(totalSpikyRevenues)}
+                  </span>
+                </div>
+                <span className="text-[9px] text-slate-400 font-medium font-sans italic block mt-1 border-t border-indigo-150/30 pt-1">Etapy projektowe i PnB</span>
               </div>
             </div>
 

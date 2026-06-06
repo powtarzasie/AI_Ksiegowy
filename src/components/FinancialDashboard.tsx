@@ -38,7 +38,7 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
   const [cutoffDate, setCutoffDate] = useState<string>('today');
 
   // Utility to format currency with Polish standard (space groupings, comma decimal fraction)
-  const formatPLN = (num: number, hasDecimals = false) => {
+  const formatPLN = (num: number, hasDecimals = true) => {
     const isNegative = num < 0;
     const absVal = Math.abs(num);
     const fixed = absVal.toFixed(hasDecimals ? 2 : 0);
@@ -507,18 +507,17 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
 
       {/* KPI Sparklines Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-5" id="kpi-sparkline-row">
-        
         {/* KPI 1: REVENUE (Indigo/Blue Accent) */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between hover:border-indigo-300 transition-all" id="spark-card-revenue">
-          <div className="flex justify-between items-start">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between hover:border-indigo-300 transition-all text-right" id="spark-card-revenue">
+          <div className="flex justify-between items-start text-left">
             <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-display">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-display text-right">
                 Przychód (M-C)
               </span>
-              <span className="text-[9px] text-slate-400 font-mono mt-0.5 block leading-tight">Zafakturowana sprzedaż netto</span>
+              <span className="text-[9px] text-slate-400 font-mono mt-0.5 block leading-tight text-right">Zafakturowana sprzedaż netto</span>
             </div>
             <div className={`flex items-center gap-0.5 text-xs font-black ${topKPIs.revenue.isPositive ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'} px-2 py-0.5 rounded-full border border-current/15 font-mono`}>
-              {topKPIs.revenue.isPositive ? <TrendingUp className="w-3.5 h-3.5 text-emerald-650" /> : <TrendingDown className="w-3.5 h-3.5 text-rose-650" />}
+              {topKPIs.revenue.isPositive ? <TrendingUp className="w-3.5 h-3.5 text-emerald-655 text-emerald-600" /> : <TrendingDown className="w-3.5 h-3.5 text-rose-655 text-rose-600" />}
               {topKPIs.revenue.change.toFixed(1).replace('.', ',')}%
             </div>
           </div>
@@ -528,7 +527,7 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
             </span>
           </div>
           <div className="pt-2 border-t border-slate-100 flex items-end justify-between gap-4">
-            <div className="w-1/2">
+            <div className="w-1/2 text-left">
               <span className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold block leading-none mb-1">Trend TTM</span>
               {renderSparkline(sparklineSeries.revenue, '#3b82f6')}
             </div>
@@ -542,16 +541,16 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
         </div>
 
         {/* KPI 2: COSTS (Crimson/Red Accent) */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between hover:border-indigo-300 transition-all font-sans" id="spark-card-costs">
-          <div className="flex justify-between items-start">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between hover:border-indigo-300 transition-all font-sans text-right" id="spark-card-costs">
+          <div className="flex justify-between items-start text-left">
             <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-display">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-display text-right">
                 Koszty Operacyjne
               </span>
-              <span className="text-[9px] text-slate-400 font-mono mt-0.5 block leading-tight">Koszty Kwalifikowane KUP</span>
+              <span className="text-[9px] text-slate-400 font-mono mt-0.5 block leading-tight text-right">Koszty Kwalifikowane KUP</span>
             </div>
             <div className={`flex items-center gap-0.5 text-xs font-black ${topKPIs.cost.isPositive ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'} px-2 py-0.5 rounded-full border border-current/15 font-mono`}>
-              {topKPIs.cost.isPositive ? <TrendingDown className="w-3.5 h-3.5 text-emerald-650" /> : <TrendingUp className="w-3.5 h-3.5 text-rose-650" />}
+              {topKPIs.cost.isPositive ? <TrendingDown className="w-3.5 h-3.5 text-emerald-655 text-emerald-600" /> : <TrendingUp className="w-3.5 h-3.5 text-rose-655 text-rose-600" />}
               {topKPIs.cost.change.toFixed(1).replace('.', ',')}%
             </div>
           </div>
@@ -561,7 +560,7 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
             </span>
           </div>
           <div className="pt-2 border-t border-slate-100 flex items-end justify-between gap-4">
-            <div className="w-1/2">
+            <div className="w-1/2 text-left">
               <span className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold block leading-none mb-1">Trend TTM</span>
               {renderSparkline(sparklineSeries.cost, '#ef4444')}
             </div>
@@ -575,16 +574,16 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
         </div>
 
         {/* KPI 3: OPERATING PROFIT (Teal Accent) */}
-        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between hover:border-indigo-300 transition-all" id="spark-card-profit">
-          <div className="flex justify-between items-start">
+        <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-xs flex flex-col justify-between hover:border-indigo-300 transition-all text-right" id="spark-card-profit">
+          <div className="flex justify-between items-start text-left">
             <div>
-              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-display">
+              <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block font-display text-right">
                 Zysk Handlowy
               </span>
-              <span className="text-[9px] text-slate-400 font-mono mt-0.5 block leading-tight">Przychody minus koszty</span>
+              <span className="text-[9px] text-slate-400 font-mono mt-0.5 block leading-tight text-right">Przychody minus koszty</span>
             </div>
             <div className={`flex items-center gap-0.5 text-xs font-black ${topKPIs.profit.isPositive ? 'text-emerald-600 bg-emerald-50' : 'text-rose-600 bg-rose-50'} px-2 py-0.5 rounded-full border border-current/15 font-mono`}>
-              {topKPIs.profit.isPositive ? <TrendingUp className="w-3.5 h-3.5 text-emerald-650" /> : <TrendingDown className="w-3.5 h-3.5 text-rose-650" />}
+              {topKPIs.profit.isPositive ? <TrendingUp className="w-3.5 h-3.5 text-emerald-655 text-emerald-600" /> : <TrendingDown className="w-3.5 h-3.5 text-rose-655 text-rose-600" />}
               {topKPIs.profit.change.toFixed(1).replace('.', ',')}%
             </div>
           </div>
@@ -594,7 +593,7 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
             </span>
           </div>
           <div className="pt-2 border-t border-slate-100 flex items-end justify-between gap-4">
-            <div className="w-1/2">
+            <div className="w-1/2 text-left">
               <span className="text-[9px] uppercase tracking-wider text-slate-400 font-semibold block leading-none mb-1">Trend TTM</span>
               {renderSparkline(sparklineSeries.profit, '#14b8a6')}
             </div>
@@ -608,13 +607,13 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
         </div>
 
         {/* KPI 4: PROFIT MARGIN (Purple Accent) */}
-        <div className="bg-gradient-to-br from-indigo-950 to-purple-950 rounded-2xl p-5 text-indigo-100 shadow-xs flex flex-col justify-between hover:scale-[1.01] transition-all" id="spark-card-margin">
-          <div className="flex justify-between items-start">
+        <div className="bg-gradient-to-br from-indigo-950 to-purple-950 rounded-2xl p-5 text-indigo-100 shadow-xs flex flex-col justify-between hover:scale-[1.01] transition-all text-right" id="spark-card-margin">
+          <div className="flex justify-between items-start text-left">
             <div>
-              <span className="text-[10px] font-bold text-indigo-200 uppercase tracking-wider block font-display">
+              <span className="text-[10px] font-bold text-indigo-200 uppercase tracking-wider block font-display text-right">
                 Marża Operacyjna %
               </span>
-              <span className="text-[9px] text-indigo-300 font-mono mt-0.5 block leading-tight">Relacja zysku do sprzedaży</span>
+              <span className="text-[9px] text-indigo-300 font-mono mt-0.5 block leading-tight text-right">Relacja zysku do sprzedaży</span>
             </div>
             <div className={`flex items-center gap-0.5 text-xs font-black ${topKPIs.margin.isPositive ? 'text-emerald-300 bg-emerald-500/15' : 'text-rose-300 bg-rose-500/15'} px-2 py-0.5 rounded-full border border-current/15 font-mono`}>
               {topKPIs.margin.isPositive ? <TrendingUp className="w-3.5 h-3.5" /> : <TrendingDown className="w-3.5 h-3.5" />}
@@ -627,7 +626,7 @@ export default function FinancialDashboard({ state }: FinancialDashboardProps) {
             </span>
           </div>
           <div className="pt-2 border-t border-indigo-900 flex items-end justify-between gap-4">
-            <div className="w-1/2">
+            <div className="w-1/2 text-left">
               <span className="text-[9px] uppercase tracking-wider text-indigo-300 font-semibold block leading-none mb-1">Trend TTM</span>
               {renderSparkline(sparklineSeries.margin, '#c084fc')}
             </div>

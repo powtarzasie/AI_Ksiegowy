@@ -3,6 +3,7 @@ import { CompanySettings } from '../types';
 import { MONTHS_PL } from '../utils/taxCalc';
 import { 
   Building2, 
+  HelpCircle,
 } from 'lucide-react';
 
 interface CompanySettingsProps {
@@ -28,7 +29,7 @@ export default function CompanySettingsComponent({
     });
   };
 
-  const yearsRange = [2024, 2025, 2026, 2027];
+  const yearsRange = [2023, 2024, 2025, 2026, 2027];
 
   return (
     <div className={embedded ? "border-t border-slate-100 pt-6 space-y-6" : "bg-white rounded-3xl shadow-meta border border-slate-200 p-6 space-y-6"} id="company-settings-card">
@@ -44,17 +45,20 @@ export default function CompanySettingsComponent({
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
         {/* Company Name */}
         <div className="flex flex-col gap-1.5" id="field-company-name">
-          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 min-h-[22px]">
             <span>Nazwa Spółki z o.o.</span>
-            {!showHelper && (
-              <button 
-                type="button"
-                onClick={() => onShowHelperChange(true, 'nip')}
-                className="text-[9.5px] text-indigo-500 hover:text-indigo-700 hover:underline font-bold font-sans cursor-pointer"
-              >
-                Po co wpisywać?
-              </button>
-            )}
+            <span className="relative group/tooltip inline-flex items-center">
+              <HelpCircle className="w-3.5 h-3.5 text-indigo-500 hover:text-indigo-750 cursor-help transition-colors select-none" />
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 bg-slate-900 border border-slate-800 text-slate-100 text-left text-xs p-3.5 rounded-2xl shadow-2xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 transition-all duration-200 z-[60] transform scale-95 origin-bottom group-hover/tooltip:scale-100 normal-case tracking-normal font-sans block">
+                <span className="font-extrabold text-indigo-400 mb-1 border-b border-indigo-500/20 pb-1 flex items-center gap-1.5 text-[11.5px] tracking-wide block uppercase font-display leading-tight">
+                  Po co wpisywać?
+                </span>
+                <span className="text-[11px] text-slate-350 leading-relaxed font-sans block font-medium">
+                  Nazwa firmy nadaje kontekst raportom i zestawieniom. Jest automatycznie umieszczana w plikach Excel lub archiwach ZIP generowanych dla Twojego biura rachunkowego.
+                </span>
+                <span className="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-slate-900 block"></span>
+              </span>
+            </span>
           </label>
           <input
             type="text"
@@ -67,17 +71,20 @@ export default function CompanySettingsComponent({
 
         {/* NIP */}
         <div className="flex flex-col gap-1.5" id="field-company-nip">
-          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 min-h-[22px]">
             <span>NIP Spółki</span>
-            {!showHelper && (
-              <button 
-                type="button"
-                onClick={() => onShowHelperChange(true, 'nip')}
-                className="text-[9.5px] text-indigo-500 hover:text-indigo-700 hover:underline font-bold font-sans cursor-pointer"
-              >
-                Dowiedz się więcej CP
-              </button>
-            )}
+            <span className="relative group/tooltip inline-flex items-center">
+              <HelpCircle className="w-3.5 h-3.5 text-indigo-500 hover:text-indigo-750 cursor-help transition-colors select-none" />
+              <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 w-72 bg-slate-900 border border-slate-800 text-slate-100 text-left text-xs p-3.5 rounded-2xl shadow-2xl opacity-0 pointer-events-none group-hover/tooltip:opacity-100 transition-all duration-200 z-[60] transform scale-95 origin-bottom group-hover/tooltip:scale-100 normal-case tracking-normal font-sans block">
+                <span className="font-extrabold text-indigo-400 mb-1 border-b border-indigo-500/20 pb-1 flex items-center gap-1.5 text-[11.5px] tracking-wide block uppercase font-display leading-tight">
+                  Dowiedz się więcej (NIP)
+                </span>
+                <span className="text-[11px] text-slate-350 leading-relaxed font-sans block font-medium">
+                  NIP nadaje kontekst prawny i poświadcza tożsamość podatkową. Służy do zapobiegania pomyłkom i bezpiecznego przechowywania danych w pamięci Twojej przeglądarki (LocalStorage).
+                </span>
+                <span className="absolute top-full left-1/2 -translate-x-1/2 border-[6px] border-transparent border-t-slate-900 block"></span>
+              </span>
+            </span>
           </label>
           <input
             type="text"
@@ -94,7 +101,7 @@ export default function CompanySettingsComponent({
 
         {/* CIT Rate */}
         <div className="flex flex-col gap-1.5" id="field-company-cit">
-          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 min-h-[22px]">
             Stawka podatku CIT
           </label>
           <div className="flex bg-slate-100 border border-slate-200 rounded-xl p-1 h-10">
@@ -125,7 +132,7 @@ export default function CompanySettingsComponent({
 
         {/* Fiscal Year */}
         <div className="flex flex-col gap-1.5" id="field-company-year">
-          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 min-h-[22px]">
             Rok Podatkowy
           </label>
           <select
@@ -143,7 +150,7 @@ export default function CompanySettingsComponent({
 
         {/* Selected Month */}
         <div className="flex flex-col gap-1.5" id="field-company-month">
-          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1.5 min-h-[22px]">
             Miesiąc Symulacji
           </label>
           <select
@@ -161,13 +168,13 @@ export default function CompanySettingsComponent({
 
         {/* Custom Logo Upload */}
         <div className="flex flex-col gap-1.5" id="field-company-logo">
-          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between">
+          <label className="text-[11px] font-bold text-slate-400 uppercase tracking-wider flex items-center justify-between min-h-[22px]">
             <span>Własne Logo Firmy</span>
             {settings.customLogoBase64 && (
               <button
                 type="button"
                 onClick={() => handleChange('customLogoBase64', undefined)}
-                className="text-[9.5px] text-rose-500 hover:text-rose-700 hover:underline font-bold font-sans cursor-pointer"
+                className="text-[9.5px] text-rose-500 hover:text-rose-750 hover:underline font-bold font-sans cursor-pointer"
               >
                 Usuń logo
               </button>
@@ -187,14 +194,17 @@ export default function CompanySettingsComponent({
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) {
-                  if (file.size > 1024 * 1024) {
-                     alert('Logotyp jest za duży! Maksymalna objętość to 1MB.');
+                  if (file.size > 8 * 1024 * 1024) {
+                     alert('Logotyp jest za duży! Maksymalna objętość to 8MB.');
+                     e.target.value = '';
                     return;
                   }
                   const reader = new FileReader();
+                  const targetInput = e.target;
                   reader.onload = (event) => {
                     const base64 = event.target?.result as string;
                     handleChange('customLogoBase64', base64);
+                    targetInput.value = '';
                   };
                   reader.readAsDataURL(file);
                 }
